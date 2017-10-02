@@ -1,0 +1,24 @@
+
+# Directories and files to ignore when uploading code to floyd
+
+.git
+.eggs
+eggs
+lib
+lib64
+parts
+sdist
+var
+*.pyc
+*.swp
+.DS_Store
+__pycache__
+subs
+misc
+isoviz
+checkpoints
+.udacity-pa
+.idea
+README.md
+outputx/checkpoints
+outputx/out_pool
