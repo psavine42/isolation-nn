@@ -15,8 +15,6 @@ import operator
 p_inf = float("inf")
 n_inf = float("-inf")
 
-
-
 def game_to_input(game):
     #L_zeros, L_ones, L_pos_self, L_pos_opp, L_legal, L_open, L_closed
     # L_open, L_closed
@@ -78,14 +76,16 @@ class NNPlayer(IsolationPlayer):
     def __init__(self, policy, value_net=None,
                  mode='policy_only',
                  name='def',
-                 silent = True,
+                 silent=True,
+                 move_strategy='legal',
                  replay=False,
                  gpu=True,
                  h=7, w=7):
         super(self.__class__, self).__init__()
 
-        #nn_player = NNPlayer(policy_NET, value_net=value_NET, mode=mode)
+
         if policy is None:
+            #need to specify cuda here, cuz of how its saved at this time
             self.model = inn.SLNet(k=64, chkpt='./outputx/policy.pkl').cuda(0)
         else:
             self.model = policy
@@ -96,6 +96,13 @@ class NNPlayer(IsolationPlayer):
             self.value_net = None
         else:
             self.value_net = value_net
+
+        #set the move stragy. in alphago, they generate proposals by policy net
+        #the isolation space is smaller, but this is test.
+        if move_strategy == 'nn':
+            self.get_move_proposals = self.nn_policy_moves
+        else:
+            self.get_move_proposals = self.all_legal_moves
 
         self.name = name
         self.mode = mode
@@ -114,8 +121,6 @@ class NNPlayer(IsolationPlayer):
         self.gpu = gpu
         self.illegal_hist = 0
         self.game_history = []
-
-
         #initialize empty game stack
         self.positions_stack = fresh_stack_gpu(h, w) #fresh_stack_gpu(h, w)
         #warm up the gpu, or else it times out on first move lol
@@ -147,6 +152,17 @@ class NNPlayer(IsolationPlayer):
                 #print(best_move)
                 return best_move
 
+            elif self.mode == 'ab_avg':
+                fresh_game = game.copy()
+                #print("opponent:", opp_last_move)
+                for depth in range(1, game.width * game.height):
+                    move = self.alphabeta_avg(fresh_game, depth)
+                    if move == (-1, -1):
+                        # at depth, it is found the best move is losing.
+                        # return best thing so far and hope he doesnt the win
+                        return best_move
+                    best_move = move
+
             elif self.mode == 'alphabeta':
                 fresh_game = game.copy()
                 #print("opponent:", opp_last_move)
@@ -159,6 +175,7 @@ class NNPlayer(IsolationPlayer):
                     best_move = move
 
             elif self.mode == 'test_mm':
+                #this is testing, but it works ????
                 move = self.not_alphabeta(game, 2)
                 self.game_history.append(move)
                 return move
@@ -215,9 +232,11 @@ class NNPlayer(IsolationPlayer):
         self.last_opp_pos = pos_op
         self.last_self_pos = pos_self
 
-    def __update_stack(self, game, stack):
+ 
 
-        pass
+    ##############################################################################
+    #   Utils
+    ##############################################################################
 
 
     def __run_policy(self, positions_stack):
@@ -229,7 +248,9 @@ class NNPlayer(IsolationPlayer):
         return self.value_net(Variable(positions_stack))
 
     def get_nn_move_simple(self, game):
-        "test method to return a move from NN prediction - no guardrails."
+        """ ####### DEPRECATED - used for training + testing ONLY #######
+            test method to return a move from NN prediction - no guardrails.
+        """
         #save stack for latter
         moves = game.get_legal_moves()
         self.update_stack(game, moves)
@@ -274,31 +295,48 @@ class NNPlayer(IsolationPlayer):
 
 
     def terminal(self, moves, depth):
-        """terminal search function
-            """
+        """terminal search function"""
         return any(((depth <= 0), (not moves)))
 
-    def to_cuda(self, eval_stacks):
-        choices = self.value_net(Variable(torch.from_numpy(np.asarray(eval_stacks)).float().cuda(0)))
+    def __to_cuda(self, network, eval_stacks):
+        choices = network(Variable(torch.from_numpy(np.asarray(eval_stacks)).float().cuda(0)))
         return choices.squeeze().data.cpu().numpy().tolist()
 
     def nn_score(self, game, ref):
+        "score function with neural net, track my running calculations tally"
         self.num_calcs += 1
-        output = self.to_cuda([game_to_input(game)])
+        output = self.__to_cuda(self.value_net, [game_to_input(game)])
         self.saved_actions.append({output[0]: game.history})
         return output[0]
 
-    def get_move_proposals(self, game):
-        pass
+
+    def nn_policy_moves(self, game, keeps=2):
+        "this could be better"
+        game.get_legal_moves()
+        output = self.__to_cuda(self.model, [game_to_input(game)])
+        #keep top n moves to
+        keep_on_hot = sorted(range(len(output)), key=lambda i: output[i])[-keeps:]
+        keep_proposals = [one_hot_move_to_index(game, v) for v in keep_on_hot]
+        return keep_proposals
+
+
+    def all_legal_moves(self, game, **kwargs):
+        return game.get_legal_moves()
+
+    def stat_active(self, pr, game, mv=''):
+        if not self.silent:
+            print("{}, active:{}, loc:{}, mv:{}".format(
+                pr, game.active_player, game.get_player_location(game.active_player), mv))
 
     ##############################################################################
     #   MINIMAX
     ##############################################################################
+
     def min_v(self, game, depth):
         """Doc """
         if self.time_left() < self.TIMER_THRESHOLD: raise SearchTimeout(depth)
         if depth == 0: return self.nn_score(game, "min")
-        moves = game.get_legal_moves()
+        moves = self.get_move_proposals(game)
         score = 1
         if not moves:
             return score
@@ -311,7 +349,7 @@ class NNPlayer(IsolationPlayer):
         """Doc """
         if self.time_left() < self.TIMER_THRESHOLD: raise SearchTimeout()
         if depth == 0: return self.nn_score(game, "max")
-        moves = game.get_legal_moves()
+        moves = self.get_move_proposals(game)
         score = -1
         if not moves:
             return score
@@ -339,20 +377,16 @@ class NNPlayer(IsolationPlayer):
     ##############################################################################
     #   ALPHABETA
     ##############################################################################
-    def stat_active(self, pr, game, mv=''):
-        if not self.silent:
-            print("{}, active:{}, loc:{}, mv:{}".format(
-                pr, game.active_player, game.get_player_location(game.active_player), mv))
 
     def max_ab(self, game, depth, alpha, beta):
         """max value function"""
         if self.time_left() < self.TIMER_THRESHOLD: raise SearchTimeout()
         if depth == 0: return self.nn_score(game, "max_ab")
-        moves = game.get_legal_moves()
+        moves = self.get_move_proposals(game)
+
         v = -1
         if not moves: return v
         self.stat_active("start max_ab", game)
-
         for move in moves:
             self.stat_active("start max_ab", game, mv=move)
             v = max(v, self.min_ab(game.forecast_move(move), depth - 1, alpha, beta))
@@ -363,9 +397,11 @@ class NNPlayer(IsolationPlayer):
     def min_ab(self, game, depth, alpha, beta):
         """min value function"""
         if self.time_left() < self.TIMER_THRESHOLD: raise SearchTimeout()
-        moves = game.get_legal_moves()
-        if self.terminal(moves, depth): return self.nn_score(game, "min_ab")
+        if depth == 0: return self.nn_score(game, "min_ab")
+        moves = self.get_move_proposals(game)
+
         v = 1
+        if not moves: return v
         self.stat_active("start min_ab", game)
         for move in moves:
             self.stat_active("min_ab", game, mv=move)
@@ -375,10 +411,10 @@ class NNPlayer(IsolationPlayer):
         return v
 
     def alphabeta(self, game, depth, alpha=-1, beta=1):
-        "Alpha beta"
+        "Alpha beta Max"
         if self.time_left() < self.TIMER_THRESHOLD: raise SearchTimeout()
         best_move, best_score = (-1, -1), -1
-        moves = game.get_legal_moves()
+        moves = self.get_move_proposals(game, keeps=4)
 
         self.stat_active("start main:", game)
         for move in moves:
@@ -390,8 +426,67 @@ class NNPlayer(IsolationPlayer):
             alpha = max(alpha, score)
         return best_move
 
+    ##############################################################################
+    #   ALPHABETA, AVERAGE FN
+    ##############################################################################
 
+    def max_avg_ab(self, game, depth, alpha, beta):
+        """max value function"""
+        if self.time_left() < self.TIMER_THRESHOLD: raise SearchTimeout()
+        if depth == 0: return self.nn_score(game, "max_ab")
+        moves = game.get_legal_moves()
+
+        v = -1
+        if not moves: return v
+        self.stat_active("start max_ab", game)
+        for move in moves:
+            self.stat_active("start max_ab", game, mv=move)
+            v = max(v, self.min_ab_avg(game.forecast_move(move), depth - 1, alpha, beta))
+            if v >= beta: return v
+            alpha = max(alpha, v)
+        return v
+
+    def min_ab_avg(self, game, depth, alpha, beta):
+        """min value function"""
+        if self.time_left() < self.TIMER_THRESHOLD: raise SearchTimeout()
+        if depth == 0:
+            return self.nn_score(game, "min_ab")
+        moves = game.get_legal_moves()
+
+        v = 1
+        if not moves: return v
+        self.stat_active("start min_ab", game)
+        for move in moves:
+            self.stat_active("min_ab", game, mv=move)
+            v = min(v, self.max_avg_ab(game.forecast_move(move), depth - 1, alpha, beta))
+            if v <= alpha:
+                return v
+            beta = min(beta, v)
+        return v
+
+    def alphabeta_avg(self, game, depth, alpha=-1, beta=1):
+        "Alpha beta"
+        if self.time_left() < self.TIMER_THRESHOLD: raise SearchTimeout()
+        best_move, best_score = (-1, -1), -1
+        moves = game.get_legal_moves()
+
+        self.stat_active("start main:", game)
+        for move in moves:
+            self.stat_active("main:", game, mv=move)
+
+            score = self.min_ab_avg(game.forecast_move(move), depth - 1, alpha, beta)
+            if score > best_score:
+                best_score = score
+                best_move = move
+            alpha = max(alpha, score)
+        return best_move
+
+
+    ##############################################################################
+    #   DEbugging nonesense
+    ##############################################################################
     def not_alphabeta(self, game, depth, alpha=-1, beta=1):
+        "for debugging .."
         best_move = (-1, -1)
         best_score = n_inf
         moves = game.get_legal_moves()
@@ -412,22 +507,16 @@ class NNPlayer(IsolationPlayer):
                 #idx += 1
                 #move_choices.append([move1, move1])
             if ems:
-                choices = self.to_cuda(ems)
+                choices = self.__to_cuda(self.value_net, ems)
                 positions_at_1[move1] = 1 * sum(choices) / float(len(choices))
 
-        print(positions_at_1)
-
+        #print(positions_at_1)
         if len(positions_at_1) > 0:
             best_move = max(positions_at_1, key=positions_at_1.get)
 
-        print(best_move)
+        #print(best_move)
         return best_move
 
-        #score = self.min_v(game.forecast_move(move), depth - 1, alpha, beta)
-        #if score > best_score:
-            #best_score = score
-            #best_move = move
-        #alpha = max(alpha, score)
 
 
 
