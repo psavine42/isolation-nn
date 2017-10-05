@@ -79,7 +79,7 @@ laoders.py      -to clean up.
 
 # TODO
 
--If you can help with reinforcment learning part (the big chunk of comments in controller.py), that is much appreciated
+-If you can help  with reinforcment learning part (the big chunk of comments in controller.py), that is much appreciated
 -implement pure numpy version (no pytorch). I have base code there, but totally lifted from https://wiseodd.github.io/techblog/2016/07/16/convnet-conv-layer/
 -working on strategies for move selection as implementend in alphago.
 
