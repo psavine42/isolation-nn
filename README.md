@@ -2,8 +2,7 @@
 
 ## Synopsis
 
-Working on a alphago like solution to the isolation problem. Because its fun to implement papers. More results when I finish the latest batch of generation and 
-minimax figuring out.
+Working on a alphago like solution to the isolation problem. Because its fun to implement papers. More results when I finish the latest batch of generation and minimax figuring out.
 
 Instructions on running forthcoming. Trained Networks should be available at https://www.floydhub.com/psavine/projects/isolation/6/code/outputx/goodpool.
 
@@ -13,11 +12,11 @@ Alphago architecture vs this architecture:
       1:  Convolution with k filters, size 3, stride 1, pad 2, relu    Convolution w/ k filters, stride 5, pad 2, relu
       2-5:  Convolution with k filters, size 3, stride 1, relu         2-12: Convolution w/ k filters, size 3, stride 1, relu
       6: Convolution with 1 filter, size 1, stride 1, bias, relu       13: Convolution 1 filter, 1 3, stride 1, bias, softmax
-
 Value Networks Architecture (goal is to get one answer of position value):
 7: fully connected layer with 128 units                                14: Additional fully connected layer, 256 units
 8: fully connected layer with 1 tanh                                   15: Fully Connected Layer with 1 tanh.
-** my layer 6 is a relu which was an oversight on my part, which I realized too late. The relu functio
+** my layer 6 is a relu which was an oversight on my part, which I realized too late,so need to retrain. **
+alpahgo paper https://storage.googleapis.com/deepmind-media/alphago/AlphaGoNaturePaper.pdf
 
 Example of position in isolation
 
@@ -65,18 +64,16 @@ gpu and my not planning anything, this kills performance, but I will figure out 
       6      AB_Center     1  |   9        6  |   4      
       7     AB_Improved    1  |   9        5  |   5      
     --------------------------------------------------
-           Win Rate:      48.5%            75.7%
-
-
-
+                 Win Rate:      48.5%            75.7%
+           
 Files:
-controller.py   -training, game generation
-nn_players.py   -neural network game agent
-game_agents.py  -the base code for udacity lesson (+some benchmarking)
-tournament.py   -run a tournament among agents (heavily modified from lesson code)
-aindnn/slnn.py  -neural network definitions
-dataloaders.py  -pytorch subclass loader for training data
-laoders.py      -to clean up.
+|controller.py   -training, game generation
+|nn_players.py   -neural network game agent
+|game_agents.py  -the base code for udacity lesson (+some benchmarking)
+|tournament.py   -run a tournament among agents (heavily modified from lesson code)
+|aindnn/slnn.py  -neural network definitions
+|dataloaders.py  -pytorch subclass loader for training data
+|laoders.py      -to clean up.
 
 
 # TODO
