@@ -1,6 +1,8 @@
 """This file is provided as a starting template for writing your own unit
 tests to run and debug your minimax and alphabeta agents locally.  The test
 cases used by the project assistant are not public.
+
+todo - cleanup paths. finish move selection
 """
 
 import unittest
@@ -124,20 +126,13 @@ class NNBuild(unittest.TestCase):
         """Testing for no error on basic load and run of game"""
 
 
-    def game_to_input(self):
-        win_defs, hist = self.load_game(self.game1, p=1)
-        opponent = AlphaBetaPlayer(score_fn=improved_score)
-        player1 = RandomPlayer()
-        game = Board(player1, opponent)
-        game_at = play_forward(game, hist, to=10)
-        print(game_at.to_string())
-        print("active player", game.active_player)
-        print(game_to_input(game_at))
+    
+
         #game_to_input(game_at)
 
 
     def setup_NNplayer(self, mode='test_mm'):
-        value_NET = torch.load(self.value_loc)
+        value_NET = torch.load('./outputx/checkpoints/200-Final.pkl')
         policy_NET = inn.SLNet(k=64, chkpt='./outputx/policy.pkl').cuda(0)
         nn_player = NNPlayer(policy_NET, value_net=value_NET, mode=mode)
         return nn_player
@@ -164,6 +159,36 @@ class NNBuild(unittest.TestCase):
         end = timeit.timeit()
         print("time for 1 run", 1000 * (end - start))
         print("final-move", move)
+
+    def game_to_input(self):
+        move_idx = 11
+        win_defs, hist = self.load_game(self.game1, p=1)
+        opponent = AlphaBetaPlayer(score_fn=improved_score)
+        #nn
+        value_NET = torch.load('./outputx/checkpoints/200-Final.pkl')
+        policy_NET = inn.SLNet(k=64, chkpt='./outputx/policy.pkl').cuda(0)
+        nn_player = NNPlayer(policy_NET,
+                                value_net=value_NET,
+                                mode='alphabeta', move_strategy='nn')
+
+        #setup board
+        game = Board(opponent, nn_player)
+        game_at = play_forward(game, hist, to=move_idx)
+        #sanity checks
+        print(game_at.to_string())
+        #print(game_to_input(game_at))
+        print(game_at.history)
+        assert nn_player == game_at.active_player
+        assert len(game_at.history) == move_idx
+        ##
+        time_millis = lambda: 1000 * timeit.default_timer()
+        move_start = time_millis()
+        time_left = lambda: 1000 - (time_millis() - move_start)
+
+        legals = game_at.get_legal_moves()
+        moves = nn_player.get_move(game_at, time_left)
+        print(legals)
+        print(moves)
 
     ###################################################################
 
@@ -192,11 +217,24 @@ class NNBuild(unittest.TestCase):
         opponent = AlphaBetaPlayer(score_fn=improved_score)
         game = Board(opponent, nn_player)
         w, h, o = game.play_sl()
+        #print_game(game, w, h, o)
+        print("winner", w )
+        #print("nn_saved:", nn_player.game_history)
+        print("nn_calcs:", nn_player.num_calcs)
+        print("mm_calcs:", opponent.num_calcs)
+        #print("data", [i.keys() for i in nn_player.saved_actions])
+
+    def alphabeta_avg(self):
+        self.minimax()
+        print("-----------------------------------")
+        nn_player = self.setup_NNplayer(mode='alphabeta')
+        opponent = AlphaBetaPlayer(score_fn=improved_score)
+        game = Board(opponent, nn_player)
+        w, h, o = game.play_sl()
         print_game(game, w, h, o)
         print("nn_saved:", nn_player.game_history)
         print("nn_calcs:", nn_player.num_calcs)
         print("mm_calcs:", opponent.num_calcs)
-        #print("data", [i.keys() for i in nn_player.saved_actions])
 
     ###################################################################
 
