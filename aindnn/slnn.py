@@ -28,13 +28,15 @@ class Net(nn.Module):
         x = self.relu(self.conv3(x))
         x = self.relu(self.conv4(x))
         x = self.relu(self.conv42(x))
-        x = self.relu(self.conv5(x))
-        #print(x.size())
-        logits = x.squeeze(-1).squeeze(-1)
+        """
+        #x = self.relu(self.conv5(x))
+        #x = self.conv5(x)
+        #logits = x.squeeze(-1).squeeze(-1)
+        """
         # in pytorch, Cross entropy includes a log_softmax
         # ~= log_softmax + Nll
         #logits = self.softmax(x)
-        return logits
+        return x
 
 
     # from official example - normals dist...
@@ -52,7 +54,7 @@ class Net(nn.Module):
 
 
 class SLNet(nn.Module):
-    def __init__(self, W=7, C=7, k=32):
+    def __init__(self, W=7, C=7, k=32, chkpt=None):
         super(SLNet, self).__init__()
 
         self.relu = nn.ReLU()
@@ -67,7 +69,10 @@ class SLNet(nn.Module):
         self.conv5 = nn.Conv2d(k, W*W, 1, stride=1, bias=True)
         # self.fc1 = nn.Linear(1024, W*W)
         self.softmax = nn.Softmax()
-        self._initialize_weights()
+        if chkpt:
+            self.load_weights(chkpt)
+        else:
+            self._initialize_weights()
 
 
     def forward(self, x):
@@ -82,6 +87,19 @@ class SLNet(nn.Module):
         # Leaving softmax outside for now
         #logits = self.softmax(x)
         return logits
+
+    def load_weights(self, chkpt):
+        #pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        # 3. load the new state dict
+        #model.load_state_dict(pretrained_dict)
+        pretrained_dict = torch.load(chkpt)
+        model_dict = self.state_dict()
+
+        # 1. filter out unnecessary keys
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        # 2. overwrite entries in the existing state dict
+        model_dict.update(pretrained_dict)
+        self.load_state_dict(pretrained_dict)
 
 
     # from official example - normals dist...
@@ -98,21 +116,30 @@ class SLNet(nn.Module):
 
 
 class PolicyNet(nn.Module):
-    def __init__(self, sl_net, k):
+    def __init__(self, sl_net, k=7):
         super(PolicyNet, self).__init__()
         # 1 x 1 filter over 49 channels, stride 1
-        sl_net.conv5 = nn.Conv2d(k, 49, 1, stride=1, bias=True)
+        #sl_net.conv5 = nn.Conv2d(k, 49, 1, stride=1, bias=True)
         self.baseNet = sl_net
+        self.conv_last = nn.Conv2d(64, 64, 1, stride=1)
+        self.relu = nn.ReLU()
         self.softmax = nn.Softmax()
-        self.fc1 = nn.Linear(49, 256)
+        self.fc1 = nn.Linear(64, 256)
         self.fc2 = nn.Linear(256, 1)
         self.rewards = []
         self.saved_actions = []
 
     def forward(self, x):
         x = self.baseNet(x)
-        x.squeeze(-1).squeeze(-1)
-        x = self.fc1(x)
+        #print("out1", x.size())
+        x = self.conv_last(x)
+        #print("ok", x.size())
+        x = x.squeeze(-1).squeeze(-1)
+        x = self.softmax(x)
+        #print("softmax", x.size())
+        #print(x.size())
+        #x = x.squeeze()
+        x = self.relu(self.fc1(x))
         x = self.fc2(x)
         return F.tanh(x)
 
@@ -122,7 +149,6 @@ class ValueNet(nn.Module):
     def __init__(self, sl_net):
         super(ValueNet, self).__init__()
         self.baseNet = sl_net
-        
 
     def forward(self, x):
         outputs = self.baseNet(x)

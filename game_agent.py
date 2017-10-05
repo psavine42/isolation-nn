@@ -93,7 +93,10 @@ def normalized_move_count(game, player):
 
 
 def diff_in_moves_normby_distance(game, player, self_weight=1, opp_weight=1):
-    " "
+    """ difference in own moves and opponent's moves as weighted and 
+        porporitonal to distance of self and opponent.
+         (this is toggled to inverse proportional in main )
+    """
 
     own_moves, opp_moves = get_moves_util(game, player)
     own_pos, opp_pos = get_locations_util(game, player)
@@ -114,9 +117,8 @@ def diff_in_moves_with_penalty(game, player, self_weight=1, opp_weight=1):
 
     own_final = self_weight * (len(own_moves) - 0.5 * own_penalty)
     opp_final = opp_weight * (len(opp_moves) - 0.5 * opp_penalty)
-    
-    return (own_final - opp_final) * distance
 
+    return (own_final - opp_final) * distance
 
 
 
@@ -156,7 +158,7 @@ def custom_score(game, player):
     if game.is_winner(player):
         return p_inf
     return diff_in_moves_normby_distance(game, player, 2, 1)
-    #diff_in_moves_with_penalty(game, player)
+
 
 
 def custom_score_2(game, player):
@@ -215,7 +217,7 @@ def custom_score_3(game, player):
     if game.is_winner(player):
         return p_inf
     return  difference_in_moves2d(game, player, 2, 1)
-    #difference_in_moves1d(game, player, 1, 1) +
+
 
 class IsolationPlayer:
     """Base class for minimax and alphabeta agents -- this class is never
@@ -239,10 +241,12 @@ class IsolationPlayer:
                 positive value large enough to allow the function to return before the
                 timer expires.
         """
-    def __init__(self, search_depth=3, score_fn=custom_score, timeout=10.):
+    def __init__(self, search_depth=3, score_fn=custom_score, random_start=False, timeout=10.):
         self.search_depth = search_depth
         self.score = score_fn
         self.time_left = None
+        self.random_start = random_start
+        self.num_calcs = 0
         self.TIMER_THRESHOLD = timeout
 
 
@@ -252,10 +256,6 @@ class IsolationPlayer:
 unroll_time = 30
 
 class MinimaxPlayer(IsolationPlayer):
-    """Game-playing agent that chooses a move using depth-limited minimax
-        search. You must finish and test this player to make sure it properly uses
-        minimax to return a good move before the search time limit expires.
-        """
 
     def get_move(self, game, time_left):
         """Search for the best move from the available legal moves and return a
@@ -286,10 +286,11 @@ class MinimaxPlayer(IsolationPlayer):
                     (-1, -1) if there are no available legal moves.
             """
         self.time_left = time_left
+        if self.random_start:
+            return random.choice(game.get_legal_moves())
         best_move = (-1, -1)
         try:
             return self.minimax(game, self.search_depth)
-
         except SearchTimeout:
             pass
         return best_move
@@ -303,6 +304,7 @@ class MinimaxPlayer(IsolationPlayer):
             raise SearchTimeout(depth)
 
         if depth == 0:
+            self.num_calcs += 1
             return self.score(game, self)
 
         moves = game.get_legal_moves()
@@ -322,6 +324,7 @@ class MinimaxPlayer(IsolationPlayer):
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
         if depth == 0:
+            self.num_calcs += 1
             return self.score(game, self)
         moves = game.get_legal_moves()
         score = n_inf
@@ -430,6 +433,8 @@ class AlphaBetaPlayer(IsolationPlayer):
                 (-1, -1) if there are no available legal moves.
             """
         self.time_left = time_left
+        if self.random_start:
+            return random.choice(game.get_legal_moves())
         self.best_move = (-1, -1)
         self.best_score = n_inf
 
@@ -443,6 +448,7 @@ class AlphaBetaPlayer(IsolationPlayer):
                 self.best_move = move
 
         except SearchTimeout:
+            #print("AB timewarning")
             return self.best_move
         return self.best_move
 
@@ -451,7 +457,6 @@ class AlphaBetaPlayer(IsolationPlayer):
         """terminal search function
             """
         return any(((depth <= 0), (not moves)))
-        # (self.time_left() < self.unroll_time),
 
     def max_v(self, game, depth, alpha, beta):
         """
@@ -461,6 +466,7 @@ class AlphaBetaPlayer(IsolationPlayer):
             raise SearchTimeout()
         moves = game.get_legal_moves()
         if self.terminal(moves, depth):
+            self.num_calcs += 1
             return self.score(game, self)
 
         v = n_inf
@@ -480,6 +486,7 @@ class AlphaBetaPlayer(IsolationPlayer):
 
         moves = game.get_legal_moves()
         if self.terminal(moves, depth):
+            self.num_calcs += 1
             return self.score(game, self)
 
         v = p_inf
@@ -491,6 +498,8 @@ class AlphaBetaPlayer(IsolationPlayer):
         return v
 
     def alphabeta(self, game, depth, alpha=n_inf, beta=p_inf):
+        if self.time_left() < self.TIMER_THRESHOLD:
+            raise SearchTimeout()
         best_move = (-1, -1)
         best_score = n_inf
         moves = game.get_legal_moves()
@@ -519,7 +528,7 @@ class NPNet():
         pass
 
     def load_pkl(self):
-        pass    
+        pass
 
 
 def get_im2col_indices(x_shape, field_height, field_width, padding=1, stride=1):

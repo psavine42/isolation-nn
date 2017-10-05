@@ -59,7 +59,6 @@ class MiniMaxTEST(unittest.TestCase):
     def setUp(self):
         reload(ga)
         reload(sp)
-        
 
 
     def test1(self):
@@ -105,7 +104,7 @@ class AlphaBetaPlayerTEST(unittest.TestCase):
         ws = []
         for _ in range(self.num):
             game = iso.Board(self.player1, self.player2)
-  
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -22,6 +22,7 @@ import time
 import matplotlib.pyplot as plt
 
 random.seed()
+eps=1e-6
 
 def print_game(g, w, h, o):
     print("\nWinner: {}\nOutcome: {}".format(w, o))
@@ -49,9 +50,18 @@ def loadNNPlayer(loc, desc='default'):
     return NNPlayer(policy, name=desc)
 
 
+def save_game(location, serialized_game, serialized_moves, res, policy_name):
+    for idx in range(len(serialized_game)):
+        name = "{}{}-r-{}m{}p2.npz".format(location, policy_name, res, idx)
+        np.savez_compressed(name, position=serialized_game[idx], move=serialized_moves[idx], result=res)
+
+
+def print_match_stat(total_won, epoch, opp_name, game, res):
+    print("wins:{}, out_of:{}, vs:{}, last_mc:{},  last_res:{}".format(total_won, epoch, opp_name, game.move_count, res))
+
 def compute_grads_1():
     pass
-eps=1e-6
+
 #preds = [one_hot_move_to_index(game, idx) for idx in indices.data.cpu().numpy()]
 #[print(x) for x in zip(indices.data.cpu().numpy(), moves_n)]
 
@@ -70,7 +80,7 @@ def play_game_rl(policy, opponent_player, opp_name, args, policy_id='best', save
         serilized = {'hist': history, 'duration': game.move_count, 'size': (7, 7)}
         positions_n, moves_n = serial_util.process_one_file(serilized, player=1)
         print(game.move_count, winner)
-        
+
         if verbose:
             #show the game for testing
             print_game(game, winner, history, o)
@@ -120,55 +130,55 @@ def play_game_rl(policy, opponent_player, opp_name, args, policy_id='best', save
             optimizer.zero_grad()
             autograd.backward(action, [None for _ in action], retain_graph=True) #
 
-        optimizer.step()
-        positions = Variable(torch.from_numpy(positions_n[idx]).float().cuda(0).unsqueeze(0))
-            moves = Variable(torch.from_numpy(moves_n[4]).long().cuda(0).unsqueeze(0))
-            #print(moves)
+            optimizer.step()
+            positions = Variable(torch.from_numpy(positions_n[idx]).float().cuda(0).unsqueeze(0))
+                moves = Variable(torch.from_numpy(moves_n[4]).long().cuda(0).unsqueeze(0))
+                #print(moves)
 
-            logits = policy(positions)
-            print("logits", logits.size())
+                logits = policy(positions)
+                print("logits", logits.size())
 
-            actions = logits.squeeze().normal(stddev=0.2)
-            print(logits.requires_grad, logits.grad_fn)
-            print("actions",actions, actions.size(), actions.requires_grad, actions.grad_fn)
-            print(F.softmax(logits).size())
-            loss = criterion(logits, moves.squeeze() )
-            actions.reinforce(loss.data * z_T )
+                actions = logits.squeeze().normal(stddev=0.2)
+                print(logits.requires_grad, logits.grad_fn)
+                print("actions",actions, actions.size(), actions.requires_grad, actions.grad_fn)
+                print(F.softmax(logits).size())
+                loss = criterion(logits, moves.squeeze() )
+                actions.reinforce(loss.data * z_T )
 
-            print("loss", loss.data)
-        positions = Variable(torch.from_numpy(positions_n).float().cuda(0))
-        moves = Variable(torch.from_numpy(moves_n).long().cuda(0))
-        logits = policy(positions)
-        print("logits", logits.size(), logits.requires_grad, logits.grad_fn)
+                print("loss", loss.data)
+                positions = Variable(torch.from_numpy(positions_n).float().cuda(0))
+                moves = Variable(torch.from_numpy(moves_n).long().cuda(0))
+                logits = policy(positions)
+                print("logits", logits.size(), logits.requires_grad, logits.grad_fn)
 
-        rewards, _ = logits.squeeze().max(-1)
-        actions = logits.squeeze().multinomial()
+                rewards, _ = logits.squeeze().max(-1)
+                actions = logits.squeeze().multinomial()
 
-        print("rewards",  rewards.data.unsqueeze(-1))
-        print("actions",  actions.size(), actions.requires_grad, actions.grad_fn)
-        #print(F.softmax(logits).size())
+                print("rewards",  rewards.data.unsqueeze(-1))
+                print("actions",  actions.size(), actions.requires_grad, actions.grad_fn)
+                #print(F.softmax(logits).size())
 
-        #loss = criterion(logits, moves.squeeze())
-        #print("loss", loss, loss.size())
-        #zs = (rewards - rewards.mean()) / (rewards.std() + eps) * -z_T
-        #zs = -z_T * torch.log(torch.nn.utils.clip_grad_norm(logits, eps, 1.0 - eps))
-        #print("normed", zs)
-    
-        print("-----------------------------------------------------")
-        #actions.reinforce(zs.data.unsqueeze(-1)  )
+                #loss = criterion(logits, moves.squeeze())
+                #print("loss", loss, loss.size())
+                #zs = (rewards - rewards.mean()) / (rewards.std() + eps) * -z_T
+                #zs = -z_T * torch.log(torch.nn.utils.clip_grad_norm(logits, eps, 1.0 - eps))
+                #print("normed", zs)
 
-        outcomes = policy.saved_actions #saved logits
-        policy_states = policy.rewards
-        R = 0
-        rewards = []
-        actions = []
+                print("-----------------------------------------------------")
+                #actions.reinforce(zs.data.unsqueeze(-1)  )
 
-        for act in policy_states:
-            actions.append(act.multinomial())
+                outcomes = policy.saved_actions #saved logits
+                policy_states = policy.rewards
+                R = 0
+                rewards = []
+                actions = []
 
-        for r in policy.rewards[::-1]:
-            R = r + game.move_count * R
-            rewards.insert(0, R)
+                for act in policy_states:
+                    actions.append(act.multinomial())
+
+                for r in policy.rewards[::-1]:
+                    R = r + game.move_count * R
+                    rewards.insert(0, R)
          """
 
         del player.rewards[:]
@@ -176,13 +186,11 @@ def play_game_rl(policy, opponent_player, opp_name, args, policy_id='best', save
 
         #save game to selfplay
         if save_mode:
-            for idx in range(len(positions_n)):
-                np.savez_compressed(args.self_play_dir + policy_id + '-r-' + res + 'm' + str(idx) + 'p2.npz',
-                                    position=positions_n[idx], move=moves_n[idx], result=z_T)
+            save_game(args.self_play_dir, positions_n, moves_n, z_T, policy_id)
 
         #report
         if epoch % 10 == 0 and epoch != 0:
-            print("wins:{}, out_of:{}, vs:{}, last_mc:{},  last_res:{}".format(total_won, epoch, opp_name, game.move_count,  res))
+            print_match_stat(total_won, epoch, opp_name, game, res)
 
     return policy, total_won/args.epochs
 
@@ -232,15 +240,11 @@ def play_game_questionable(policy, opponent_player, opp_name, args, policy_id='b
         del player.rewards[:]
         del player.saved_actions[:]
 
-        #save game to selfplay
         if save_mode:
-            for idx in range(len(positions_n)):
-                np.savez_compressed(args.self_play_dir + policy_id + '-r-' + res + 'm' + str(idx) + 'p2.npz',
-                                    position=positions_n[idx], move=moves_n[idx], result=z_T)
+            save_game(args.self_play_dir, positions_n, moves_n, z_T, policy_id)
 
-        #report
         if (epoch + 1) % 10 == 0:
-            print("wins:{}, out_of:{}, vs:{}, last_mc:{}, running_loss:{}, last_res:{}".format(total_won, epoch, opp_name, game.move_count, ld, res))
+            print_match_stat(total_won, epoch, opp_name, game, res)
 
     return policy, total_won/args.epochs
 
@@ -264,18 +268,21 @@ def tournament_schedule(args):
               "MM_Open": MinimaxPlayer(score_fn=open_move_score),
               "MM_center": MinimaxPlayer(score_fn=center_score)}
 
+    def print_round(win_pct, match, opp_name):
+        print("win_pct:{}, match:{}, vs:{} ---- base:{}".format(win_pct, match, opp_name, args.start_model))
+
     defeated = []
     models = modelglob + list(agents.keys())
-    #results = {m:[] for m in models}
     best_hist = []
-    print(models)
     start_time = time.strftime("%Y-%m-%d-%H:%M")
 
     if args.q == 0:
         game_fn = play_game_rl
     else:
         game_fn = play_game_questionable
+
     for match in range(args.matches):
+
         #load an Opponent
         opp_model_loc = random.choice(models)
         if opp_model_loc in agents:
@@ -287,8 +294,7 @@ def tournament_schedule(args):
 
         ## play game
         policy, win_pct = game_fn(policy, opponent_player, opp_name, args, policy_id='best_in')
-        #print("-----------------------------------")
-        print("win_pct:{}, match:{}, vs:{} ---- base:{}".format(win_pct, match, opp_name, args.start_model))
+        print_round(win_pct, match, opp_name)
 
         if win_pct >= 0.99:
             print("---------------")
@@ -312,24 +318,19 @@ def tournament_schedule(args):
                 defeated.append(opp_model_loc)
             except:
                 print("you are an idiot. remember to write a unittest. fuck state")
-            #old_models = glob.glob(args.out_pool_dir + '*')
 
         if (match + 1) % 50 == 0:
             policy_loc = save_model_fmt(policy, args.out_pool_dir, start_time, '-top-', match)
 
         best_hist.append([opp_name, win_pct])
 
-    print("defeated opponents--------------")
-    [print(x) for x in defeated]
-
-    print("----- FINAL RESULTS----------------------------")
+    print("---------------Tournament complete------------")
+    print("---------------defeated opponents--------------")
+    (print(x) for x in defeated)
+    print("---------------FINAL RESULTS------------------")
     #running_total = 0
     for m in best_hist:
-        #running_total + m[0]
-        print("win_pct:{}, vs: {}".format( m[1], m[0]))
-
-
-
+        print("win_pct:{}, vs: {}".format(m[1], m[0]))
 
 
 def play_with_friend(args, checkpoint, checkpoint2=None):
@@ -390,12 +391,6 @@ def play_with_friend(args, checkpoint, checkpoint2=None):
 
 
 
-
-
-
-
-
-
 def load_model_fmt(chkpt_dir, model=None):
     if not model:
         f = os.listdir(chkpt_dir)[:-1]
@@ -415,109 +410,106 @@ def run_validation(model, valid_loader, valid_size, criterion):
     """
     positions, moves = valid_loader.__iter__().__next__()
     positions = Variable(positions.cuda(0))
-    moves = Variable(moves.squeeze().cuda(0))
+    moves = Variable(moves.cuda(0))
 
     logits = model(positions)
-    _, indices = logits.max(-1)
+    #_, indices = logits.max(-1)
     loss = criterion(logits, moves)
 
-    num_correct = torch.nonzero(moves.data - indices.data).size(0)
-    accuracy =  (valid_size - num_correct)  / valid_size
-    print("accuracy: {}, validation_loss: {}, num_samples: {}".format(accuracy, loss.data[0], valid_size))
+    #num_correct = torch.nonzero(moves.data - indices.data).size(0)
+    #accuracy =  (valid_size - num_correct)  / valid_size
+    print("validation_loss: {}, num_samples: {}".format(loss.data[0], valid_size))
+    #print("accuracy: {}, validation_loss: {}, num_samples: {}".format(loss.data[0], valid_size))
 
 
+def init_value_net(policy_loc):
+    model = torch.load(policy_loc)
+    policy = inn.PolicyNet(model).cuda(0)
+    return policy
 
-def train_supervised_policy(args):
+def train_supervised(args, model, criterion):
     """
-        size_average (bool, optional) – By default, the losses are averaged over observations for minibatch.
-        However, if the field size_average is set to False, the losses are instead summed for minibatch.
+        size_average (bool, optional) – By default, the losses are averaged
+        over observations for minibatch.
+        However, if the field size_average is set to False, the losses are
+        instead summed for minibatch.
         data_dir,epochs=50 lr=0.0002, batch_size=16, valid_size=100
     """
-    #initalize model
-    model = inn.Net(k=16).cuda(0)
-
-    #NLL in pytorch ~ categorical_crossentropy in tf
-    criterion = nn.CrossEntropyLoss().cuda(0)
-
     # alphago does not use momemntum, but a few people said it trained faster.
     # also adadelta seams to be mode in style now...
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
-
     # dataloaders - train set is majority of set
     # validation is some 5% of set. I can augment if nec. also shuffled
-    train_data = ld.CoupledLoader(args.data_dir)
-    valid_data = ld.CoupledLoader(args.data_dir, train=False)
+    train_data = ld.CoupledLoader(args.data_dir, train=True, vl=args.vl, pct_train=args.pct_train)
+    valid_data = ld.CoupledLoader(args.data_dir, train=False, vl=args.vl, pct_train=args.pct_train)
 
-    train_loader = data.DataLoader(train_data, batch_size=args.batch_size, num_workers=2, shuffle=False)
+    train_loader = data.DataLoader(train_data, batch_size=args.batch_size, num_workers=4, shuffle=args.shuffle)
     valid_loader = data.DataLoader(valid_data, batch_size=args.valid_size, num_workers=1, shuffle=True)
     #m=16 deepmind
-    start = timeit.timeit()
+    step = 0
     for epoch in range(args.epochs):
-        for i, (positions, moves) in enumerate(train_loader):
-
+        for i, (positions, targets) in enumerate(train_loader):
+            step +=1
             positions = Variable(positions.cuda(0))
-            moves = Variable(moves.cuda(0))
+            targets = Variable(targets.cuda(0))
 
             optimizer.zero_grad()
             logits = model(positions)
-            loss = criterion(logits, moves.squeeze(-1))
+            #print("pos", logits.size(), targets.size())
+            loss = criterion(logits, targets)
             loss.backward()
             optimizer.step()
 
-            if (i+1) % 20 == 0:
-                print("Epoch: {}/{}, step: {}, training_loss: {:.5f}".format(epoch + 1, args.epochs, i + 1, loss.data[0]))
+            if (i+1) % args.log_every == 0:
+                print("Epoch: {}/{}, step: {}, training_loss: {:.5f}".format(
+                    epoch + 1, args.epochs, i + 1, loss.data[0]))
 
-            if (i+1) % 1000 == 0:
-                #validate every G or so...
+            if i % args.validate_every == 0:
                 run_validation(model, valid_loader, args.valid_size, criterion)
-        #save once per epoch
-        torch.save(model,  "{}model_{}_{}_{}.pkl".format(args.chkpt_dir, args.desc, start, epoch))
 
-    torch.save(model, "{}model_{}_{}_{}.pkl".format(args.chkpt_dir, args.desc, start, "-Final"))
+            #save atleast once per epoch
+            if step % args.chkt_every == 0:
+                torch.save(model, "{}model_{}_e{}_s{}.pkl".format(args.chkpt_dir, args.desc,epoch, step))
+    #Final save
+    torch.save(model, "{}model_{}_e{}_s{}.pkl".format(args.chkpt_dir, args.desc, "-Final", step))
 
 
-def init_policy():
-    return inn.Net(k=16).cuda(0)
+def setup_value_training(args):
+    criterion = nn.MSELoss().cuda(0)
+    args.data_dir = '/home/psavine/data/isolation/selfplay2/'
+    args.shuffle = True
+    args.vl = True
+    model = torch.load(args.start_model)
+    value = inn.PolicyNet(model).cuda(0)
+    print(value)
+    train_supervised(args, value, criterion)
 
-def init_value_net(policy_loc):
-    net = torch.load(policy_loc)
-    net.conv5 = F.Softmax(nn.Conv2d(k, W*W, 1, stride=1, bias=True)).squeeze(-1).squeeze(-1)
-    net.reshape_to_fc = net.conv5
-    return 
 
-def parse_log(path):
-    f = open(path,'r')
-    #lines = f.readlines()
-    #f.close()
-    steps = []
-    train_loss = []
-    val_loss = []
-    accuracy = []
-    step = False
-    while True:
-        text = f.readline()
-        if len(text) > 0:
-            if text[0] == 'a':
-                step = True
-                cols = text.split(',')
-                accuracy.append(float(cols[0].split(': ')[1]))
-                val_loss.append(float(cols[1].split(': ')[1]))
-                
-            if text[0] == 'E' and step:
-                step = False
-                train_loss.append(float(cols[2].split(': ')[1]))
-                steps.append(float(cols[1].split(': ')[1]))
-    f.close()
-    return train_loss, val_loss, accuracy, steps
+def setup_policy_training(args):
+    #initalize model #NLL in pytorch ~ categorical_crossentropy in tf
+    criterion = nn.CrossEntropyLoss().cuda(0)
+    args.gamedir = None
+    args.shuffle = False
+    if args.start_model is not None:
+        model = torch.load(args.start_model)
+    else:
+        model = inn.Net(k=args.k).cuda(0)
+    train_supervised(args, model, criterion)
 
-def log_graph(path):
-    tl, vl, acc, st = parse_log(path)
-    plt.plot(tl, vl, acc)
-    plt.ylabel('some numbers')
-    plt.show()
+
+def doinference(args):
+    criterion = nn.MSELoss().cuda(0)
+    args.data_dir = '/home/psavine/data/isolation/games/'
+    model = '200-Final.pkl'
+    model = torch.load(args.start_model)
+    train_data = ld.CoupledLoader(args.data_dir, train=True, vl=args.vl, pct_train=args.pct_train)
+    train_loader = data.DataLoader(train_data, batch_size=1, num_workers=2, shuffle=True)
+
 
 
 #floyd run --env pytorch-0.2 --gpu "python controller.py --act reinforce  --env floyd --epochs 200 --start_model model_nn_small_0.006865953999977137_2.pkl --matches 1000"
+#python controller.py --act value --start_model ./outputx/checkpoints/model_nn_test_0.008578838998801075_2.pkl
+#200-Final.pkl
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Hyperparams')
     parser.add_argument('--act', nargs='?', type=str, default='train', help='[]')
@@ -525,19 +517,24 @@ if __name__ == "__main__":
     #dirs
     parser.add_argument('--pool_dir', nargs='?', type=str, default='./outputx/pool/', help='[]')
     parser.add_argument('--q', nargs='?', type=int, default=0, help='[]')
-    parser.add_argument('--epochs', nargs='?', type=int, default=10, help='[]')
+    parser.add_argument('--epochs', nargs='?', type=int, default=2000, help='[]')
     parser.add_argument('--matches', nargs='?', type=int, default=10, help='[]')
     parser.add_argument('--time_lim', nargs='?', type=int, default=300, help='[]')
     parser.add_argument('--batch_size', nargs='?', type=int, default=16, help='[]')
-    parser.add_argument('--start_model', type=str)
+    parser.add_argument('--start_model', type=str, default=None)
     parser.add_argument('--desc', nargs='?', type=str, default="nn_small", help='[]')
-    parser.add_argument('--gamma', nargs='?', type=float, default=0.99, help='discount factor for RL')
+    parser.add_argument('--gamma', nargs='?', type=float, default=0.99, help='')
     parser.add_argument('--valid_size', nargs='?', type=int, default=100, help='[]')
     parser.add_argument('--k', nargs='?', type=int, default=32, help='[]')
     parser.add_argument('--lr', nargs='?', type=float, default=0.0005, help='[]')
     parser.add_argument('--momentum', nargs='?', type=float, default=0.9, help='[]')
+    #saving + logging stuff
+    parser.add_argument('--pct_train', nargs='?', type=float, default=0.9, help='[]')
+    parser.add_argument('--chkt_every', nargs='?', type=int, default=200000, help='[]')
+    parser.add_argument('--log_every', nargs='?', type=int, default=20, help='[]')
+    parser.add_argument('--validate_every', nargs='?', type=int, default=1000, help='[]')
     args = parser.parse_args()
-    
+
     #control Env
     if args.env == 'home':
         args.data_dir = '/home/psavine/data/isolation/positions/'
@@ -556,22 +553,25 @@ if __name__ == "__main__":
         args.self_play_dir = '/output/selfplay/'
 
     print(args)
-    print(os.listdir("./"))
+    #print(os.listdir("./"))
     print("---------------------")
-    print(os.listdir("./outputx/"))
-    print(os.listdir("./outputx/pool/"))
+    #print(os.listdir("./outputx/"))
+    #print(os.listdir("./outputx/pool/"))
     #create env
-    for dr in [args.self_play_dir, args.chkpt_dir, args.pool_dir,args.defeated , args.out_pool_dir]:
+    for dr in [args.self_play_dir, args.chkpt_dir, args.pool_dir,args.defeated, args.out_pool_dir]:
         if not os.path.exists(dr):
             os.makedirs(dr)
 
     #Functions
-    if args.act == 'train':
-        train_supervised_policy(args)
-    elif args.act == 'new_policy':
-        net = init_value_net(args.start_model)
+    if args.act == 'policy':
+        setup_policy_training(args)
+
+    elif args.act == 'value':
+        setup_value_training(args)
+
     elif args.act == 'reinforce':
         tournament_schedule(args)
+
     elif args.act == 'log':
         log_graph('./misc/training')
 

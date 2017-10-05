@@ -37,11 +37,13 @@ class Board(object):
     BLANK = 0
     NOT_MOVED = None
 
-    def __init__(self, player_1, player_2, width=7, height=7, data_dir='/home/psavine/data/isolation/selfplay/'):
+    def __init__(self, player_1, player_2, width=7, height=7,
+                 data_dir='/home/psavine/data/isolation/games2/'):
         self.width = width
         self.height = height
         self.move_count = 0
         self._player_1 = player_1
+        self.history = []
         self._player_2 = player_2
         self._active_player = player_1
         self._inactive_player = player_2
@@ -107,6 +109,7 @@ class Board(object):
         """ Return a deep copy of the current board. """
         new_board = Board(self._player_1, self._player_2, width=self.width, height=self.height, data_dir=self.datadir)
         new_board.move_count = self.move_count
+        new_board.history = copy(self.history) 
         new_board._active_player = self._active_player
         new_board._inactive_player = self._inactive_player
         new_board._board_state = copy(self._board_state)
@@ -158,17 +161,17 @@ class Board(object):
     def get_player_location(self, player):
         """Find the current location of the specified player on the board.
 
-        Parameters
-        ----------
-        player : object
-            An object registered as a player in the current game.
+            Parameters
+            ----------
+            player : object
+                An object registered as a player in the current game.
 
-        Returns
-        -------
-        (int, int) or None
-            The coordinate pair (row, column) of the input player, or None
-            if the player has not moved.
-        """
+            Returns
+            -------
+            (int, int) or None
+                The coordinate pair (row, column) of the input player, or None
+                if the player has not moved.
+            """
         if player == self._player_1:
             if self._board_state[-1] == Board.NOT_MOVED:
                 return Board.NOT_MOVED
@@ -206,11 +209,11 @@ class Board(object):
     def apply_move(self, move):
         """Move the active player to a specified location.
 
-        Parameters
-        ----------
-        move : (int, int)
-            A coordinate pair (row, column) indicating the next position for
-            the active player on the board.
+            Parameters
+            ----------
+            move : (int, int)
+                A coordinate pair (row, column) indicating the next position for
+                the active player on the board.
         """
         idx = move[0] + move[1] * self.height
         last_move_idx = int(self.active_player == self._player_2) + 1
@@ -218,6 +221,7 @@ class Board(object):
         self._board_state[idx] = 1
         self._board_state[-3] ^= 1
         self._active_player, self._inactive_player = self._inactive_player, self._active_player
+        self.history.append(move)
         self.move_count += 1
 
     def is_winner(self, player):
@@ -230,26 +234,26 @@ class Board(object):
 
     def utility(self, player):
         """Returns the utility of the current game state from the perspective
-        of the specified player.
+            of the specified player.
 
-                    /  +infinity,   "player" wins
-        utility =  |   -infinity,   "player" loses
-                    \          0,    otherwise
+                        /  +infinity,   "player" wins
+            utility =  |   -infinity,   "player" loses
+                        \          0,    otherwise
 
-        Parameters
-        ----------
-        player : object (optional)
-            An object registered as a player in the current game. If None,
-            return the utility for the active player on the board.
+            Parameters
+            ----------
+            player : object (optional)
+                An object registered as a player in the current game. If None,
+                return the utility for the active player on the board.
 
-        Returns
-        ----------
-        float
-            The utility value of the current game state for the specified
-            player. The game has a utility of +inf if the player has won,
-            a value of -inf if the player has lost, and a value of 0
-            otherwise.
-        """
+            Returns
+            ----------
+            float
+                The utility value of the current game state for the specified
+                player. The game has a utility of +inf if the player has won,
+                a value of -inf if the player has lost, and a value of 0
+                otherwise.
+            """
         if not self.get_legal_moves(self._active_player):
 
             if player == self._inactive_player:
@@ -275,14 +279,11 @@ class Board(object):
         random.shuffle(valid_moves)
         return valid_moves
 
-    def print_board(self):
-        """DEPRECATED - use Board.to_string()"""
-        return self.to_string()
 
     def to_string(self, symbols=['1', '2']):
         """Generate a string representation of the current game state, marking
-        the location of each player and indicating which cells have been
-        blocked, and which remain open.
+            the location of each player and indicating which cells have been
+            blocked, and which remain open.
         """
         p1_loc = self._board_state[-1]
         p2_loc = self._board_state[-2]
@@ -311,7 +312,7 @@ class Board(object):
     def save_self(self, start, history, res_type):
         end = timeit.timeit()
         duration = end - start
-        np.savez_compressed( self.datadir + str(start) + '.npz',
+        np.savez_compressed(self.datadir + str(start) + '.npz',
                             size=[self.width, self.height],
                             result = res_type,
                             state = self._board_state,
@@ -320,7 +321,7 @@ class Board(object):
                             winner=str(self._inactive_player))
 
 
-    def play(self, time_limit=TIME_LIMIT_MILLIS):
+    def play(self, time_limit=TIME_LIMIT_MILLIS, name='', sdir=None):
         """Execute a match between the players by alternately soliciting them
             to select a move and applying it in the game.
 
@@ -348,7 +349,7 @@ class Board(object):
             game_copy = self.copy()
 
             move_start = time_millis()
-            time_left = lambda : time_limit - (time_millis() - move_start)
+            time_left = lambda: time_limit - (time_millis() - move_start)
             curr_move = self._active_player.get_move(game_copy, time_left)
             move_end = time_left()
 
@@ -356,14 +357,17 @@ class Board(object):
                 curr_move = Board.NOT_MOVED
 
             if move_end < 0:
-                #self.save_self(start, move_history, "timeout")
+                #print("timeout", len(move_history))
+                self.save_self(start, move_history, "timeout")
                 return self._inactive_player, move_history, "timeout"
 
             if curr_move not in legal_player_moves:
                 if len(legal_player_moves) > 0:
-                    #self.save_self(start, move_history, "forfeit")
+                    self.save_self(start, move_history, "forfeit")
+                    #print("forfiet", len(move_history))
                     return self._inactive_player, move_history, "forfeit"
-                #self.save_self(start, move_history, "illegal move")
+                #print("illegal move", len(move_history))
+                self.save_self(start, move_history, "illegal move")
                 return self._inactive_player, move_history, "illegal move"
 
             move_history.append(list(curr_move))
@@ -371,7 +375,7 @@ class Board(object):
             self.apply_move(curr_move)
 
 
-    def play_sl(self, time_limit=TIME_LIMIT_MILLIS, sl_player=2, sl_mult=1):
+    def play_sl(self, time_limit=TIME_LIMIT_MILLIS, sl_player=2, sl_mult=10):
         """Execute a match between the players by alternately soliciting them
             to select a move and applying it in the game.
 
@@ -385,13 +389,13 @@ class Board(object):
             #swithc to 1
             player =~ player
             legal_player_moves = self.get_legal_moves()
-            #game_copy = self.copy()
+            game_copy = self.copy()
             move_start = time_millis()
 
             if player == 0:
                 time_left = lambda : time_limit - (time_millis() - move_start)
             else:
-                time_left = lambda : time_limit - (time_millis() - move_start)
+                time_left = lambda : sl_mult * time_limit - (time_millis() - move_start)
 
             #print("player", self._active_player, player)
             curr_move = self._active_player.get_move(self, time_left)
@@ -402,14 +406,14 @@ class Board(object):
                 curr_move = Board.NOT_MOVED
 
             if move_end < 0:
-                #self.save_self(start, move_history, "timeout")
+                self.save_self(start, move_history, "timeout")
                 return self._inactive_player, move_history, "timeout"
 
             if curr_move not in legal_player_moves:
                 if len(legal_player_moves) > 0:
-                    #self.save_self(start, move_history, "forfeit")
+                    self.save_self(start, move_history, "forfeit")
                     return self._inactive_player, move_history, "forfeit"
-                #self.save_self(start, move_history, "illegal move")
+                self.save_self(start, move_history, "illegal move")
                 return self._inactive_player, move_history, "illegal move"
 
             move_history.append(list(curr_move))

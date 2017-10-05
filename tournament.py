@@ -14,6 +14,7 @@ order corrects for imbalances due to both starting position and initiative.
 import itertools
 import random
 import warnings
+from multiprocessing.dummy import Pool as ThreadPool
 import csv
 from collections import namedtuple
 import argparse
@@ -22,6 +23,7 @@ from sample_players import (RandomPlayer, open_move_score,
                             improved_score, center_score)
 from game_agent import (MinimaxPlayer, AlphaBetaPlayer, custom_score,
                         custom_score_2, custom_score_3)
+from nn_players import NNPlayer
 
 NUM_MATCHES = 5  # number of matches against each opponent
 TIME_LIMIT = 150  # number of milliseconds before timeout
@@ -37,7 +39,7 @@ game_agent.py.
 Agent = namedtuple("Agent", ["player", "name"])
 
 
-def play_round(cpu_agent, test_agents, win_counts, num_matches):
+def play_round(cpu_agent, test_agents, win_counts, num_matches, idx=''):
     """Compare the test agents to the cpu agent in "fair" matches.
 
     "Fair" matches use random starting locations and force the agents to
@@ -60,8 +62,7 @@ def play_round(cpu_agent, test_agents, win_counts, num_matches):
 
         # play all games and tally the results
         for game in games:
-            
-            winner, _, termination = game.play(time_limit=TIME_LIMIT)
+            winner, _, termination = game.play(time_limit=TIME_LIMIT, name=idx)
             game.to_string()
             win_counts[winner] += 1
 
@@ -69,7 +70,7 @@ def play_round(cpu_agent, test_agents, win_counts, num_matches):
                 timeout_count += 1
             elif termination == "forfeit":
                 forfeit_count += 1
-
+    
     return timeout_count, forfeit_count
 
 
@@ -79,7 +80,7 @@ def update(total_wins, wins):
     return total_wins
 
 
-def play_matches(cpu_agents, test_agents, num_matches):
+def play_matches(cpu_agents, test_agents, num_matches, idx=0):
     """Play matches between the test agent and each cpu_agent individually. """
     total_wins = {agent.player: 0 for agent in test_agents}
     total_timeouts = 0.
@@ -95,7 +96,7 @@ def play_matches(cpu_agents, test_agents, num_matches):
 
         print("{!s:^9}{:^13}".format(idx + 1, agent.name), end="", flush=True)
 
-        counts = play_round(agent, test_agents, wins, num_matches)
+        counts = play_round(agent, test_agents, wins, num_matches, idx=idx)
         total_timeouts += counts[0]
         total_forfeits += counts[1]
         total_wins = update(total_wins, wins)
@@ -113,8 +114,7 @@ def play_matches(cpu_agents, test_agents, num_matches):
         ''.join([
             '{:^13}'.format(
                 "{:.1f}%".format(100 * total_wins[x[1].player] / total_matches)
-            ) for x in enumerate(test_agents)
-    ]))
+            ) for x in enumerate(test_agents)]))
 
     if total_timeouts:
         print(("\nThere were {} timeouts during the tournament -- make sure " +
@@ -126,15 +126,18 @@ def play_matches(cpu_agents, test_agents, num_matches):
                "legal moves available to play.\n").format(total_forfeits))
 
 
-def main():
+def main(n_matches, algo='minimax'):
 
     # Define two agents to compare -- these agents will play from the same
     # starting position against the same adversaries in the tournament
     test_agents = [
-        Agent(AlphaBetaPlayer(score_fn=improved_score), "AB_Improved"),
-        Agent(AlphaBetaPlayer(score_fn=custom_score), "AB_Custom"),
-        Agent(AlphaBetaPlayer(score_fn=custom_score_2), "AB_Custom_2"),
-        Agent(AlphaBetaPlayer(score_fn=custom_score_3), "AB_Custom_3")
+        #Agent(AlphaBetaPlayer(score_fn=improved_score), "AB_Improved"),
+        #Agent(NNPlayer(None, mode='test_mm'), "NN-1move")
+        Agent(NNPlayer(None, mode=algo), "AB_NN"),
+        Agent(NNPlayer(None, mode='minimax'), "MM_NN")
+        #Agent(AlphaBetaPlayer(score_fn=custom_score), "AB_Custom"),
+        #Agent(AlphaBetaPlayer(score_fn=custom_score_2), "AB_Custom_2"),
+        #Agent(AlphaBetaPlayer(score_fn=custom_score_3), "AB_Custom_3")
     ]
 
     # Define a collection of agents to compete against the test agents
@@ -152,21 +155,18 @@ def main():
     print("{:^74}".format("*************************"))
     print("{:^74}".format("Playing Matches"))
     print("{:^74}".format("*************************"))
-    play_matches(cpu_agents, test_agents, NUM_MATCHES)
+    play_matches(cpu_agents, test_agents, n_matches)
 
-def custom():
-
-    # Define two agents to compare -- these agents will play from the same
-    # starting position against the same adversaries in the tournament
+def custom(idx):
     test_agents = [
         Agent(AlphaBetaPlayer(score_fn=improved_score), "AB_Improved"),
+        Agent(AlphaBetaPlayer(score_fn=open_move_score), "AB_Open"),
         Agent(AlphaBetaPlayer(score_fn=custom_score), "AB_Custom"),
         Agent(AlphaBetaPlayer(score_fn=custom_score_2), "AB_Custom_2"),
         Agent(AlphaBetaPlayer(score_fn=custom_score_3), "AB_Custom_3")
     ]
-
-    # Define a collection of agents to compete against the test agents
     cpu_agents = [
+        #Agent(MinimaxPlayer(score_fn=improved_score), "MM_Improved"),
         Agent(AlphaBetaPlayer(score_fn=open_move_score), "AB_Open"),
         Agent(AlphaBetaPlayer(score_fn=center_score), "AB_Center"),
         Agent(AlphaBetaPlayer(score_fn=improved_score), "AB_Improved")
@@ -176,16 +176,23 @@ def custom():
     print("{:^74}".format("*************************"))
     print("{:^74}".format("Playing Matches"))
     print("{:^74}".format("*************************"))
-    play_matches(cpu_agents, test_agents, 100)
+    play_matches(cpu_agents, test_agents, 10000, idx=idx)
+
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Hyperparams')
     parser.add_argument('--act', nargs='?', type=str, default='train', help='[]')
+    parser.add_argument('--threads', nargs='?', type=int, default=4, help='[]')
+    parser.add_argument('--n', nargs='?', type=int, default=5, help='[]')
+    parser.add_argument('--alg', nargs='?', type=str, default='alphabeta', help='[]')
     args = parser.parse_args()
     if args.act == 'md':
-        for _ in range(10):
-            custom()
+        #pool = ThreadPool(args.threads)
+        #pool.map(custom, range(args.threads))
+        custom(1)
     if args.act == 'd':
-        custom()
+        custom('')
     else:
-        main()
+        main(args.n, algo=args.alg)
