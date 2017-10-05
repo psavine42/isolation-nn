@@ -8,12 +8,12 @@ minimax figuring out.
 Instructions on running forthcoming. Trained Networks should be available at https://www.floydhub.com/psavine/projects/isolation/6/code/outputx/goodpool.
 
 Alphago architecture vs this architecture:
-`         Network architecture (Policy baseline):                     AlphaGo Network architecture
-features: k = 64 (also tried 16, but unstable)                         k=128 (also with 256, 384)
-1:        Convolution with k filters, size 3, stride 1, pad 2, relu    Convolution w/ k filters, stride 5, pad 2, relu
-2-5:      Convolution with k filters, size 3, stride 1, relu           2-12: Convolution w/ k filters, size 3, stride 1, relu
-6: Convolution with 1 filter, size 1, stride 1, bias, relu             13: Convolution 1 filter, 1 3, stride 1, bias, softmax
-`
+      Network architecture (Policy baseline):                     AlphaGo Network architecture
+      features: k = 64 (also tried 16, but unstable)                   k=128 (also with 256, 384)
+      1:  Convolution with k filters, size 3, stride 1, pad 2, relu    Convolution w/ k filters, stride 5, pad 2, relu
+      2-5:  Convolution with k filters, size 3, stride 1, relu         2-12: Convolution w/ k filters, size 3, stride 1, relu
+      6: Convolution with 1 filter, size 1, stride 1, bias, relu       13: Convolution 1 filter, 1 3, stride 1, bias, softmax
+
 Value Networks Architecture (goal is to get one answer of position value):
 7: fully connected layer with 128 units                                14: Additional fully connected layer, 256 units
 8: fully connected layer with 1 tanh                                   15: Fully Connected Layer with 1 tanh.
@@ -21,51 +21,53 @@ Value Networks Architecture (goal is to get one answer of position value):
 
 Example of position in isolation
 
-`    0   1   2   3   4   5   6
-0  |   |   |   |   |   |   |   |
-1  |   |   |   |   | 1 |   |   | 
-2  |   | 2 |   |   | - | - |   | 
-3  |   |   | - |   | - | - |   | 
-4  |   |   | - | - |   |   | - | 
-5  |   | - |   |   |   |   |   | 
-6  |   |   |   |   |   |   |   | `
+    0   1   2   3   4   5   6
+    0  |   |   |   |   |   |   |   |
+    1  |   |   |   |   | 1 |   |   | 
+    2  |   | 2 |   |   | - | - |   | 
+    3  |   |   | - |   | - | - |   | 
+    4  |   |   | - | - |   |   | - | 
+    5  |   | - |   |   |   |   |   | 
+    6  |   |   |   |   |   |   |   |
 
 And here is how it is fed into the convnet:
 
-`Player Position      Opponent position
-[[[0 0 0 0 0 0 0]    [[0 0 0 0 0 0 0]  [[1 1 1 1 1 1 1]   [[1 1 1 1 1 1 1]
-  [0 0 0 0 0 0 0]     [0 0 0 0 1 0 0]   [1 1 1 1 0 1 1]    [1 1 1 1 1 1 1]
-  [0 1 0 0 0 0 0]     [0 0 0 0 0 0 0]   [1 0 1 1 0 0 1]    [1 1 1 1 1 1 1]
-  [0 0 0 0 0 0 0]     [0 0 0 0 0 0 0]   [1 1 0 1 0 0 1]    [1 1 1 1 1 1 1]
-  [0 0 0 0 0 0 0]     [0 0 0 0 0 0 0]   [1 1 0 0 1 1 0]    [1 1 1 1 1 1 1]
-  [0 0 0 0 0 0 0]     [0 0 0 0 0 0 0]   [1 0 1 1 1 1 1]    [1 1 1 1 1 1 1]
-  [0 0 0 0 0 0 0]]    [0 0 0 0 0 0 0]]  [1 1 1 1 1 1 1]]   [1 1 1 1 1 1 1]]
-
- [[1 0 1 0 0 0 0]    [[0 0 0 0 0 0 0]  [[0 0 0 0 0 0 0]
-  [0 0 0 1 0 0 0]     [0 0 0 0 0 0 0]   [0 0 0 0 0 0 0]
-  [0 0 0 0 0 0 0]     [0 0 0 0 1 1 0]   [0 0 0 0 0 0 0]
-  [0 0 0 1 0 0 0]     [0 0 1 0 1 1 0]   [0 0 0 0 0 0 0]
-  [1 0 0 0 0 0 0]     [0 0 1 1 0 0 1]   [0 0 0 0 0 0 0]
-  [0 0 0 0 0 0 0]     [0 1 0 0 0 0 0]   [0 0 0 0 0 0 0]
-  [0 0 0 0 0 0 0]]    [0 0 0 0 0 0 0]]  [0 0 0 0 0 0 0]]]`
+    Player Position      Opponent position  Open moves          All ones       
+    [[[0 0 0 0 0 0 0]    [[0 0 0 0 0 0 0]  [[1 1 1 1 1 1 1]   [[1 1 1 1 1 1 1]
+      [0 0 0 0 0 0 0]     [0 0 0 0 1 0 0]   [1 1 1 1 0 1 1]    [1 1 1 1 1 1 1]
+      [0 1 0 0 0 0 0]     [0 0 0 0 0 0 0]   [1 0 1 1 0 0 1]    [1 1 1 1 1 1 1]
+      [0 0 0 0 0 0 0]     [0 0 0 0 0 0 0]   [1 1 0 1 0 0 1]    [1 1 1 1 1 1 1]
+      [0 0 0 0 0 0 0]     [0 0 0 0 0 0 0]   [1 1 0 0 1 1 0]    [1 1 1 1 1 1 1]
+      [0 0 0 0 0 0 0]     [0 0 0 0 0 0 0]   [1 0 1 1 1 1 1]    [1 1 1 1 1 1 1]
+      [0 0 0 0 0 0 0]]    [0 0 0 0 0 0 0]]  [1 1 1 1 1 1 1]]   [1 1 1 1 1 1 1]]
+      
+      Legal moves         Closed move       All zeros
+    [[1 0 1 0 0 0 0]     [[0 0 0 0 0 0 0]  [[0 0 0 0 0 0 0]
+      [0 0 0 1 0 0 0]     [0 0 0 0 0 0 0]   [0 0 0 0 0 0 0]
+      [0 0 0 0 0 0 0]     [0 0 0 0 1 1 0]   [0 0 0 0 0 0 0]
+      [0 0 0 1 0 0 0]     [0 0 1 0 1 1 0]   [0 0 0 0 0 0 0]
+      [1 0 0 0 0 0 0]     [0 0 1 1 0 0 1]   [0 0 0 0 0 0 0]
+      [0 0 0 0 0 0 0]     [0 1 0 0 0 0 0]   [0 0 0 0 0 0 0]
+      [0 0 0 0 0 0 0]]    [0 0 0 0 0 0 0]]  [0 0 0 0 0 0 0]]]
 
 
 Udacity imposes a 150ms limit per move, and with moving stuff up and down from
-gpu and my not planning anything, this kills performance, but I will figure out the solution. Without time limit, this beats up on pure tree search, but at 150ms, it gets killed. When running tests with relaxed time constraints, neural net wins almost every time, even with currently bad implementation.
+gpu and my not planning anything, this kills performance, but I will figure out the solution. Without time limit, this beats up on pure tree search, but at 150ms, it gets killed. When running tests with relaxed time constraints, neural net wins almost every time (90%), even with currently bad implementation. So basically, if I get to finish the move selection bit and do some retraining, it should do significantly better.
 
-`                       150ms/mv        1000ms/mv
- Match #   Opponent       AB_NN          AB_NN
- Won | Lost      Won | Lost
-    1       Random       9  |   1       10  |   0  
-    2       MM_Open      7  |   3        8  |   2  
-    3      MM_Center     9  |   1        9  |   1  
-    4     MM_Improved    5  |   5        9  |   1      
-    5       AB_Open      2  |   8        6  |   4       
-    6      AB_Center     1  |   9        6  |   4      
-    7     AB_Improved    1  |   9        5  |   5      
---------------------------------------------------
+                          150ms/mv        1000ms/mv
+    Match #   Opponent    AB_NN           AB_NN
+                          Won | Lost      Won | Lost
+      1       Random       9  |   1       10  |   0  
+      2       MM_Open      7  |   3        8  |   2  
+      3      MM_Center     9  |   1        9  |   1  
+      4     MM_Improved    5  |   5        9  |   1      
+      5       AB_Open      2  |   8        6  |   4       
+      6      AB_Center     1  |   9        6  |   4      
+      7     AB_Improved    1  |   9        5  |   5      
+    --------------------------------------------------
            Win Rate:      48.5%            75.7%
-`
+
+
 
 Files:
 controller.py   -training, game generation
