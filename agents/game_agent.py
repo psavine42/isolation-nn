@@ -26,11 +26,14 @@ def get_moves_util(game, player):
     "return self and player positions"
     return game.get_legal_moves(player), game.get_legal_moves(game.get_opponent(player))
 
+
 def remaining_moves(game):
     return game.width * game.height - game.move_count
 
+
 def num_in_corner(moves):
     pass
+
 
 def edge_and_corner(game, moves):
     "utility function to get edge and corner moves"
@@ -41,6 +44,7 @@ def edge_and_corner(game, moves):
         if r == game.height: counter += 1
         if c == game.width: counter += 1
     return counter
+
 
 def valid_moves_2n(game, player):
     """a fast way to approximate a game two moves deep
@@ -125,6 +129,7 @@ def diff_in_moves_with_penalty(game, player, self_weight=1, opp_weight=1):
 ##############################################################################
 #       Base Lesson Code
 ##############################################################################
+
 
 class SearchTimeout(Exception):
     """Subclass base exception for code clarity. """
@@ -256,7 +261,6 @@ class IsolationPlayer:
 unroll_time = 30
 
 class MinimaxPlayer(IsolationPlayer):
-
     def get_move(self, game, time_left):
         """Search for the best move from the available legal moves and return a
             result before the time limit expires.
@@ -294,7 +298,6 @@ class MinimaxPlayer(IsolationPlayer):
         except SearchTimeout:
             pass
         return best_move
-
 
     def min_v(self, game, depth):
         """
@@ -334,7 +337,6 @@ class MinimaxPlayer(IsolationPlayer):
         for move in moves:
             score = max(score, self.min_v(game.forecast_move(move), depth - 1))
         return score
-
 
     def minimax(self, game, depth):
         """Implement depth-limited minimax search algorithm as described in
@@ -392,7 +394,6 @@ class MinimaxPlayer(IsolationPlayer):
         return best_move
 
 
-
 class AlphaBetaPlayer(IsolationPlayer):
     """Game-playing agent that chooses a move using iterative deepening minimax
         search with alpha-beta pruning. You must finish and test this player to
@@ -435,8 +436,7 @@ class AlphaBetaPlayer(IsolationPlayer):
         self.time_left = time_left
         if self.random_start:
             return random.choice(game.get_legal_moves())
-        self.best_move = (-1, -1)
-        self.best_score = n_inf
+        self.best_move, self.best_score = (-1, -1), n_inf
 
         try:
             for depth in range(1, game.width * game.height):
@@ -448,10 +448,8 @@ class AlphaBetaPlayer(IsolationPlayer):
                 self.best_move = move
 
         except SearchTimeout:
-            #print("AB timewarning")
             return self.best_move
         return self.best_move
-
 
     def terminal(self, moves, depth):
         """terminal search function
@@ -511,8 +509,6 @@ class AlphaBetaPlayer(IsolationPlayer):
                 best_move = move
             alpha = max(alpha, score)
         return best_move
-        # return best_move #, best_score
-
 
 
 ##############################################################################
@@ -551,6 +547,7 @@ def get_im2col_indices(x_shape, field_height, field_width, padding=1, stride=1):
 
     return (k.astype(int), i.astype(int), j.astype(int))
 
+
 def im2col_indices(x, field_height, field_width, padding=1, stride=1):
     """ An implementation of im2col based on some fancy indexing """
     # Zero-pad the input
@@ -564,8 +561,9 @@ def im2col_indices(x, field_height, field_width, padding=1, stride=1):
     cols = cols.transpose(1, 2, 0).reshape(field_height * field_width * C, -1)
     return cols
 
+
 def conv2d(X, W, b, stride=1, padding=1):
-    #cache = W, b, stride, padding
+    # cache = W, b, stride, padding
     n_filters, d_filter, h_filter, w_filter = W.shape
     n_x, d_x, h_x, w_x = X.shape
     h_out = (h_x - h_filter + 2 * padding) / stride + 1
@@ -582,10 +580,9 @@ def conv2d(X, W, b, stride=1, padding=1):
     out = W_col @ X_col + b
     out = out.reshape(n_filters, h_out, w_out, n_x)
     out = out.transpose(3, 0, 1, 2)
-
-    #cache = (X, W, b, stride, padding, X_col)
-
+    # cache = (X, W, b, stride, padding, X_col)
     return out
+
 
 def fully_connected(X, W, b):
     out = X @ W + b
@@ -594,3 +591,4 @@ def fully_connected(X, W, b):
 
 def activation_relu(X):
     return np.maximum(X, 0)
+

@@ -11,19 +11,15 @@ players, and the players play each match twice -- once as the first player and
 once as the second player.  Randomizing the openings and switching the player
 order corrects for imbalances due to both starting position and initiative.
 """
-import itertools
 import random
-import warnings
-from multiprocessing.dummy import Pool as ThreadPool
-import csv
 from collections import namedtuple
 import argparse
 from isolation import Board
 from sample_players import (RandomPlayer, open_move_score,
                             improved_score, center_score)
-from game_agent import (MinimaxPlayer, AlphaBetaPlayer, custom_score,
-                        custom_score_2, custom_score_3)
-from nn_players import NNPlayer
+from agents.game_agent import (MinimaxPlayer, AlphaBetaPlayer, custom_score,
+                               custom_score_2, custom_score_3)
+from agents.nn_players import NNPlayer
 
 NUM_MATCHES = 5  # number of matches against each opponent
 TIME_LIMIT = 150  # number of milliseconds before timeout

@@ -1,25 +1,14 @@
 import os
-import numpy as np
-import argparse
-import dataloaders as ld
-import torch
-import shutil
-import torch.nn as nn
 from torch import autograd
-from torch.autograd import Variable
-import aindnn.slnn as inn
 import glob
 from torch.utils import data
-import loader as serial_util
-import timeit
+from problem import loader as serial_util, dataloaders as ld
 from isolation import *
 from sample_players import (RandomPlayer, open_move_score,
                             improved_score, center_score)
-from game_agent import (MinimaxPlayer, AlphaBetaPlayer, custom_score,
-                        custom_score_2, custom_score_3)
-from nn_players import *
+from agents.game_agent import (MinimaxPlayer, AlphaBetaPlayer)
+from agents.nn_players import *
 import time
-import matplotlib.pyplot as plt
 
 random.seed()
 eps=1e-6
@@ -250,7 +239,7 @@ def play_game_questionable(policy, opponent_player, opp_name, args, policy_id='b
 
 
 
-#floyd run --env pytorch-0.2 --gpu "python controller.py --act reinforce  --env floyd --epochs 200 --start_model model_nn_small_0.006865953999977137_2.pkl --matches 10000"
+# floyd run --env pytorch-0.2 --gpu "python controller.py --act reinforce  --env floyd --epochs 200 --start_model model_nn_small_0.006865953999977137_2.pkl --matches 10000"
 def tournament_schedule(args):
     "args: epochs, matches, self_play_dir start_model, pool_dir, out_pool_dir"
 
@@ -283,7 +272,7 @@ def tournament_schedule(args):
 
     for match in range(args.matches):
 
-        #load an Opponent
+        # load an Opponent
         opp_model_loc = random.choice(models)
         if opp_model_loc in agents:
             opp_name = opp_model_loc
@@ -292,7 +281,7 @@ def tournament_schedule(args):
             opp_name = os.path.basename(opp_model_loc)
             opponent_player = loadNNPlayer(opp_model_loc)
 
-        ## play game
+        # play game
         policy, win_pct = game_fn(policy, opponent_player, opp_name, args, policy_id='best_in')
         print_round(win_pct, match, opp_name)
 
@@ -326,22 +315,22 @@ def tournament_schedule(args):
 
     print("---------------Tournament complete------------")
     print("---------------defeated opponents--------------")
-    (print(x) for x in defeated)
+    # (print(x) for x in defeated)
     print("---------------FINAL RESULTS------------------")
-    #running_total = 0
+    # running_total = 0
     for m in best_hist:
         print("win_pct:{}, vs: {}".format(m[1], m[0]))
 
 
 def play_with_friend(args, checkpoint, checkpoint2=None):
-    #intialize ρ = σ
+    # intialize ρ = σ
     policy = load_model_fmt(checkpoint)
 
-    #policy = inn.Net()
+    # policy = inn.Net()
     if not checkpoint2:
         player1 = AlphaBetaPlayer(score_fn=improved_score)
     else:
-        #todo replace with previous verion
+        # todo replace with previous verion
         player1 = AlphaBetaPlayer(score_fn=improved_score)
 
     # criterion = nn.CrossEntropyLoss()
@@ -376,10 +365,7 @@ def play_with_friend(args, checkpoint, checkpoint2=None):
             action.reinforce(r)
 
         optimizer.zero_grad()
-
         autograd.backward(policy.saved_actions, [None for _ in policy.saved_actions])
-        #loss = criterion(actions, rewards.squeeze())
-        #loss.backward()
         optimizer.step()
 
         del policy.rewards[:]
@@ -387,8 +373,6 @@ def play_with_friend(args, checkpoint, checkpoint2=None):
         if (i + 1) % 10 == 0:
             print("num wins {}".format(wins, ))
             wins = 0
-
-
 
 
 def load_model_fmt(chkpt_dir, model=None):
@@ -403,7 +387,6 @@ def load_model_fmt(chkpt_dir, model=None):
     return model
 
 
-
 def run_validation(model, valid_loader, valid_size, criterion):
     """
         Pick batch from validation set and run it. THese be shuffled
@@ -413,13 +396,13 @@ def run_validation(model, valid_loader, valid_size, criterion):
     moves = Variable(moves.cuda(0))
 
     logits = model(positions)
-    #_, indices = logits.max(-1)
+    # indices = logits.max(-1)
     loss = criterion(logits, moves)
 
-    #num_correct = torch.nonzero(moves.data - indices.data).size(0)
-    #accuracy =  (valid_size - num_correct)  / valid_size
+    # num_correct = torch.nonzero(moves.data - indices.data).size(0)
+    # accuracy =  (valid_size - num_correct)  / valid_size
     print("validation_loss: {}, num_samples: {}".format(loss.data[0], valid_size))
-    #print("accuracy: {}, validation_loss: {}, num_samples: {}".format(loss.data[0], valid_size))
+    # print("accuracy: {}, validation_loss: {}, num_samples: {}".format(loss.data[0], valid_size))
 
 
 def init_value_net(policy_loc):
@@ -445,7 +428,7 @@ def train_supervised(args, model, criterion):
 
     train_loader = data.DataLoader(train_data, batch_size=args.batch_size, num_workers=4, shuffle=args.shuffle)
     valid_loader = data.DataLoader(valid_data, batch_size=args.valid_size, num_workers=1, shuffle=True)
-    #m=16 deepmind
+    # m=16 deepmind
     step = 0
     for epoch in range(args.epochs):
         for i, (positions, targets) in enumerate(train_loader):
@@ -455,7 +438,7 @@ def train_supervised(args, model, criterion):
 
             optimizer.zero_grad()
             logits = model(positions)
-            #print("pos", logits.size(), targets.size())
+            # print("pos", logits.size(), targets.size())
             loss = criterion(logits, targets)
             loss.backward()
             optimizer.step()
@@ -467,10 +450,10 @@ def train_supervised(args, model, criterion):
             if i % args.validate_every == 0:
                 run_validation(model, valid_loader, args.valid_size, criterion)
 
-            #save atleast once per epoch
+            # save atleast once per epoch
             if step % args.chkt_every == 0:
                 torch.save(model, "{}model_{}_e{}_s{}.pkl".format(args.chkpt_dir, args.desc,epoch, step))
-    #Final save
+    # Final save
     torch.save(model, "{}model_{}_e{}_s{}.pkl".format(args.chkpt_dir, args.desc, "-Final", step))
 
 
@@ -507,62 +490,11 @@ def doinference(args):
 
 
 
-#floyd run --env pytorch-0.2 --gpu "python controller.py --act reinforce  --env floyd --epochs 200 --start_model model_nn_small_0.006865953999977137_2.pkl --matches 1000"
-#python controller.py --act value --start_model ./outputx/checkpoints/model_nn_test_0.008578838998801075_2.pkl
-#200-Final.pkl
+# floyd run --env pytorch-0.2 --gpu "python controller.py --act reinforce  --env floyd --epochs 200 --start_model model_nn_small_0.006865953999977137_2.pkl --matches 1000"
+# python controller.py --act value --start_model ./outputx/checkpoints/model_nn_test_0.008578838998801075_2.pkl
+# 200-Final.pkl
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Hyperparams')
-    parser.add_argument('--act', nargs='?', type=str, default='train', help='[]')
-    parser.add_argument('--env', nargs='?', type=str, default='home', help='[home, floyd, work]')
-    #dirs
-    parser.add_argument('--pool_dir', nargs='?', type=str, default='./outputx/pool/', help='[]')
-    parser.add_argument('--q', nargs='?', type=int, default=0, help='[]')
-    parser.add_argument('--epochs', nargs='?', type=int, default=2000, help='[]')
-    parser.add_argument('--matches', nargs='?', type=int, default=10, help='[]')
-    parser.add_argument('--time_lim', nargs='?', type=int, default=300, help='[]')
-    parser.add_argument('--batch_size', nargs='?', type=int, default=16, help='[]')
-    parser.add_argument('--start_model', type=str, default=None)
-    parser.add_argument('--desc', nargs='?', type=str, default="nn_small", help='[]')
-    parser.add_argument('--gamma', nargs='?', type=float, default=0.99, help='')
-    parser.add_argument('--valid_size', nargs='?', type=int, default=100, help='[]')
-    parser.add_argument('--k', nargs='?', type=int, default=32, help='[]')
-    parser.add_argument('--lr', nargs='?', type=float, default=0.0005, help='[]')
-    parser.add_argument('--momentum', nargs='?', type=float, default=0.9, help='[]')
-    #saving + logging stuff
-    parser.add_argument('--pct_train', nargs='?', type=float, default=0.9, help='[]')
-    parser.add_argument('--chkt_every', nargs='?', type=int, default=200000, help='[]')
-    parser.add_argument('--log_every', nargs='?', type=int, default=20, help='[]')
-    parser.add_argument('--validate_every', nargs='?', type=int, default=1000, help='[]')
-    args = parser.parse_args()
-
-    #control Env
-    if args.env == 'home':
-        args.data_dir = '/home/psavine/data/isolation/positions/'
-        args.chkpt_dir = './outputx/checkpoints/'
-        #args.pool_dir = './outputx/pool/'
-        args.out_pool_dir = './outputx/out_pool/'
-        args.defeated = './outputx/defeated_pool/'
-        args.self_play_dir = '/home/psavine/data/isolation/selfplay/'
-
-    elif args.env == 'floyd':
-        args.data_dir = '/input/positions/'
-        args.chkpt_dir = '/output/checkpoints/'
-        #args.pool_dir = './outputx/pool/'
-        args.out_pool_dir = '/output/out_pool/'
-        args.defeated = '/output/defeated_pool/'
-        args.self_play_dir = '/output/selfplay/'
-
-    print(args)
-    #print(os.listdir("./"))
-    print("---------------------")
-    #print(os.listdir("./outputx/"))
-    #print(os.listdir("./outputx/pool/"))
-    #create env
-    for dr in [args.self_play_dir, args.chkpt_dir, args.pool_dir,args.defeated, args.out_pool_dir]:
-        if not os.path.exists(dr):
-            os.makedirs(dr)
-
-    #Functions
+    # Functions
     if args.act == 'policy':
         setup_policy_training(args)
 

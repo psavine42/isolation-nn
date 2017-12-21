@@ -73,7 +73,7 @@ Udacity imposes a 150ms limit per move, and with moving stuff up and down from g
       6      AB_Center     1  |   9        6  |   4      
       7     AB_Improved    1  |   9        5  |   5      
     --------------------------------------------------
-                 Win Rate:      48.5%            75.7%
+           Win Rate:      48.5%            75.7%
            
 Files:
 controller.py   -training, game generation

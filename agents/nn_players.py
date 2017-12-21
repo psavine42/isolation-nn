@@ -1,25 +1,18 @@
 
 import random
-from game_agent import IsolationPlayer, SearchTimeout
+from agents.game_agent import IsolationPlayer, SearchTimeout
 import timeit
 import torch
-import torch.nn as nn
 from torch.autograd import Variable
-import torch.nn.functional as F
-import loader as serial_util
 import aindnn.slnn as inn
 import numpy as np
-from functools import partial
-import operator
 
 p_inf = float("inf")
 n_inf = float("-inf")
 
+
 def game_to_input(game):
-    #L_zeros, L_ones, L_pos_self, L_pos_opp, L_legal, L_open, L_closed
-    # L_open, L_closed
-    x = game.height
-    y = game.width
+    x, y = game.height, game.width
     L_pos_self, L_zeros, L_pos_opp, L_legal, L_open, = [np.zeros((x, y), dtype=int) for _ in range(5)]
     L_ones, L_closed = [np.ones((x, y), dtype=int) for _ in range(2)]
 
@@ -39,17 +32,16 @@ def game_to_input(game):
     return np.stack([L_pos_self, L_pos_opp, L_open, L_ones, L_legal, L_closed, L_zeros], axis=0)
 
 
-
 def fresh_stack(x, y):
-    #x = game.height
-    #y = game.width
     L_pos_self, L_zeros, L_pos_opp, L_legal, L_closed, = [np.zeros((x, y), dtype=int) for _ in range(5)]
     L_ones, L_open  = [np.ones((x, y), dtype=int) for _ in range(2)]
     return np.stack([L_pos_self, L_pos_opp, L_open, L_ones, L_legal, L_closed, L_zeros], axis=0)
 
+
 def fresh_stack_gpu(x, y):
     stack = fresh_stack(x, y)
     return torch.from_numpy(stack).float().unsqueeze(0).cuda(0)
+
 
 def fresh_stack_flat(x, y):
     stack = fresh_stack(x, y)
@@ -57,15 +49,11 @@ def fresh_stack_flat(x, y):
 
 
 def one_hot_move_to_index(game, move_index):
-    #neural net returns a one hot vector.
-    #transform to (row, col) move
+    # neural net returns a one hot vector.
+    # transform to (row, col) move
     r = move_index // game.width
     c = move_index - (r * game.width)
     return r, c
-
-#def nn_score_(value_net, game, history, player):
-    #move, _ = serial_util.process_one_file(history, player)
-
 
 
 class NNPlayer(IsolationPlayer):
@@ -97,8 +85,8 @@ class NNPlayer(IsolationPlayer):
         else:
             self.value_net = value_net
 
-        #set the move stragy. in alphago, they generate proposals by policy net
-        #the isolation space is smaller, but this is test.
+        # set the move stragy. in alphago, they generate proposals by policy net
+        # the isolation space is smaller, but this is test.
         if move_strategy == 'nn':
             self.get_move_proposals = self.nn_policy_moves
         else:
@@ -107,7 +95,7 @@ class NNPlayer(IsolationPlayer):
         self.name = name
         self.mode = mode
         # this is an efficienter index of position_stack
-        #self.positions_stack = None
+
         # these hold previous moves to add update
         self.last_opp_pos = None
         self.last_self_pos = None
@@ -121,14 +109,14 @@ class NNPlayer(IsolationPlayer):
         self.gpu = gpu
         self.illegal_hist = 0
         self.game_history = []
-        #initialize empty game stack
-        self.positions_stack = fresh_stack_gpu(h, w) #fresh_stack_gpu(h, w)
-        #warm up the gpu, or else it times out on first move lol
-        #print("stack built")
+        # initialize empty game stack
+        self.positions_stack = fresh_stack_gpu(h, w) # fresh_stack_gpu(h, w)
+        # warm up the gpu, or else it times out on first move lol
+        # print("stack built")
         self.__run_policy(self.positions_stack)
         if value_net:
             self.__run_value(self.positions_stack)
-        #print("warmup complete")
+        # print("warmup complete")
 
 
     def get_move(self, game, time_left):
@@ -165,7 +153,6 @@ class NNPlayer(IsolationPlayer):
 
             elif self.mode == 'alphabeta':
                 fresh_game = game.copy()
-                #print("opponent:", opp_last_move)
                 for depth in range(1, game.width * game.height):
                     move = self.alphabeta(fresh_game, depth)
                     if move == (-1, -1):
@@ -251,11 +238,11 @@ class NNPlayer(IsolationPlayer):
         """ ####### DEPRECATED - used for training + testing ONLY #######
             test method to return a move from NN prediction - no guardrails.
         """
-        #save stack for latter
+        # save stack for latter
         moves = game.get_legal_moves()
         self.update_stack(game, moves)
 
-        #run neural net
+        # run neural net
         logits = self.__run_policy(self.positions_stack)
 
         if self.replay:
@@ -265,10 +252,10 @@ class NNPlayer(IsolationPlayer):
         else:
             _, index = logits.squeeze().max(-1)
 
-        #converd to coords
+        # converd to coords
         move = one_hot_move_to_index(game, index.data[0])
 
-        #this is product of trying to figure out RL todo cleanup
+        # this is product of trying to figure out RL todo cleanup
         if move in moves:
             self.saved_actions.append(index)
             self.rewards.append(logits)
@@ -490,12 +477,9 @@ class NNPlayer(IsolationPlayer):
         best_move = (-1, -1)
         best_score = n_inf
         moves = game.get_legal_moves()
-        #print(moves)
-        #self.update_stack(game, moves)
         eval_stacks = []
         move_choices = []
         positions_at_1 = {}
-        #idx = 0
         start = timeit.timeit()
         for move1 in moves:
             copygame = game.forecast_move(move1)
@@ -504,17 +488,13 @@ class NNPlayer(IsolationPlayer):
             for move2 in legal_opp_moves:
                 fgame = copygame.forecast_move(move2)
                 ems.append(game_to_input(fgame))
-                #idx += 1
-                #move_choices.append([move1, move1])
             if ems:
                 choices = self.__to_cuda(self.value_net, ems)
                 positions_at_1[move1] = 1 * sum(choices) / float(len(choices))
 
-        #print(positions_at_1)
         if len(positions_at_1) > 0:
             best_move = max(positions_at_1, key=positions_at_1.get)
 
-        #print(best_move)
         return best_move
 
 

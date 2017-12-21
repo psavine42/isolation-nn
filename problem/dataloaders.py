@@ -4,7 +4,8 @@ import random
 from torch.utils import data
 import glob
 import os
-import loader as serial_util
+from problem import loader as serial_util
+
 random.seed()
 
 
@@ -26,11 +27,9 @@ def load_npz(fname, kys):
     npz.close()
     return ret
 
+
 def play_forward(game, file, to=None):
-    if to:
-        hist = file[:to]
-    else:
-        hist = file
+    hist = file[:to] if to else file
     g = game.copy()
     for move in hist:
         g = g.forecast_move(move)
@@ -46,7 +45,7 @@ class CoupledLoader(data.Dataset):
         self.base_files = {}
         self.is_value_training = vl
         files_root = sorted(glob.glob(self.root + '*' + self.ext))
-        #theyre in order, so this is how i role
+        # theyre in order, so this is how i role
         total = int(len(files_root) * pct_train)
         if train:
             self.files = files_root[:total]
@@ -66,8 +65,8 @@ class CoupledLoader(data.Dataset):
         :param index:
         """
         if not self.is_value_training:
-            #so i did not save the frickin win index in my position files
-            #cuz i hadnt read that far in alphago paper
+            # so i did not save the frickin win index in my position files
+            # cuz i hadnt read that far in alphago paper
             ret = load_npz(self.files[index], ['position', 'move'])
             position = torch.from_numpy(ret['position']).float()
             moves = torch.from_numpy(ret['move']).long().squeeze()
@@ -89,7 +88,7 @@ class CoupledLoader(data.Dataset):
             else:
                 return position, torch.Tensor([-1]).float()
 
-        """
+"""
         else:
             # to retrieve it, I have to find the origional game..
             name = os.path.splitext(os.path.basename(self.files[index]))[0]
@@ -105,5 +104,5 @@ class CoupledLoader(data.Dataset):
             else:
                 print("WARNING: position error")
                 return self.__getitem__(index + 1)
-        """
+"""
 

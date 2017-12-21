@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/AIND-Isolation.iml" filepath="$PROJECT_DIR$/.idea/AIND-Isolation.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../fun-with-dnc/.idea/fun-with-dnc.iml" filepath="$PROJECT_DIR$/../fun-with-dnc/.idea/fun-with-dnc.iml" />
     </modules>
   </component>
 </project>

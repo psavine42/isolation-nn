@@ -79,6 +79,13 @@ class Board(object):
             """
         return self._inactive_player
 
+    @property
+    def terminal(self):
+        if len(self.get_legal_moves()) > 0:
+            return True
+        else:
+            return False
+
     def setstate_NQA(self, state):
         new_board = self.copy()
         new_board._board_state = state
@@ -157,6 +164,13 @@ class Board(object):
         """
         return [(i, j) for j in range(self.width) for i in range(self.height)
                 if self._board_state[i + j * self.height] == Board.BLANK]
+
+    @property
+    def terminal(self):
+        if len(self.get_legal_moves()) > 0:
+            return True
+        else:
+            return False
 
     def get_player_location(self, player):
         """Find the current location of the specified player on the board.

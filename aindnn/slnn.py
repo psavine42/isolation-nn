@@ -3,6 +3,29 @@ import torch.nn as nn
 import math
 import torch.nn.functional as F
 
+
+class ResidualBlock(nn.Module):
+    def __init__(self, channels, filters=256, size=3, stride=1):
+        super(ResidualBlock, self).__init__()
+
+
+    def forward(self, *input):
+        pass
+
+
+class ConvBlock(nn.Module):
+    def __init__(self, channels, filters=256, size=3, stride=1):
+        super(ConvBlock, self).__init__()
+        self.conv = nn.Conv2d(channels, filters, size, stride=stride)
+        self.bnorm = nn.BatchNorm2d()
+        self.relu = nn.ReLU()
+
+    def forward(self, input):
+        x = self.conv(input)
+        x = self.bnorm(x)
+        return self.relu(x)
+
+
 class Net(nn.Module):
     def __init__(self, W=7, C=7, k=32):
         super(Net, self).__init__()

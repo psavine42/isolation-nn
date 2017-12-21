@@ -6,32 +6,15 @@ todo - cleanup paths. finish move selection
 """
 
 import unittest
-import os
-import numpy as np
-import torch
 import controller as cntr
-from importlib import reload
 import torch.nn as nn
-from torch import autograd
-from torch.autograd import Variable
-import aindnn.slnn as inn
-import glob
-from torch.utils import data
-import timeit
 from isolation import *
-from dataloaders import *
-import loader as serial_util
-import torch.nn.functional as F
-from sample_players import (RandomPlayer, open_move_score,
-                            improved_score, center_score)
-from game_agent import (MinimaxPlayer, AlphaBetaPlayer, custom_score,
-                        custom_score_2, custom_score_3)
-from nn_players import *
-import glob
-import argparse
-from functools import partial
-
-
+from problem.dataloaders import *
+from problem import loader as serial_util
+from sample_players import (RandomPlayer, improved_score)
+from agents.game_agent import (MinimaxPlayer, AlphaBetaPlayer)
+from agents.nn_players import *
+import glob, argparse
 
 test_npz = './testdata/best_in-r-lossm13p2.npz'
 model_old = './outputx/checkpoints/model_nn_test_0.008578838998801075_2.pkl'
@@ -40,19 +23,21 @@ epsilon = 1e-6
 def dotimed(net, args):
    pass
 
+
 def print_game(g, w, h, o):
     print("\nWinner: {}\nOutcome: {}".format(w, o))
     print(g.to_string())
     print("Move history:\n{!s}".format(h))
     print("num moves", g.move_count)
 
-def log_loss(y_true, y_pred):
-    '''Keras 'loss' function for the REINFORCE algorithm, where y_true is the action that was
-    taken, and updates with the negative gradient will make that action more likely. We use the
-    negative gradient because keras expects training data to minimize a loss function.
-    '''
-    return -y_true * torch.log(torch.clip_gradient(y_pred, epsilon, 1.0 - epsilon))
 
+def log_loss(y_true, y_pred):
+    """
+        Keras 'loss' function for the REINFORCE algorithm, where y_true is the action that was
+        taken, and updates with the negative gradient will make that action more likely. We use the
+        negative gradient because keras expects training data to minimize a loss function.
+        """
+    return -y_true * torch.log(torch.clip_gradient(y_pred, epsilon, 1.0 - epsilon))
 
 
 class NNBuild(unittest.TestCase):
@@ -61,7 +46,6 @@ class NNBuild(unittest.TestCase):
         self.value_loc = './outputx/checkpoints/200-Final.pkl'
         self.policy_loc = './outputx/checkpoints/model_nn_test_0.008578838998801075_2.pkl'
         self.game1 = '/home/psavine/data/isolation/games/0.006683826970402151.npz'
-
 
     def setup_nn(self):
         model = torch.load(model_old)
@@ -84,19 +68,19 @@ class NNBuild(unittest.TestCase):
 
     def load_game(self, game, p=1):
         hist = load_npz(game, ['hist', 'size', 'duration'])
-        win_defs, _ = serial_util.process_one_file(hist, p) #player2
+        win_defs, _ = serial_util.process_one_file(hist, p) # player2
         return win_defs, hist['hist']
 
     def value_net(self):
         """Testing for no error on basic load and run of game"""
         policy = torch.load(self.value_loc)
-        #hist1 = load_npz(test_npz, ['position', 'move', 'result'])['hist']
+        # hist1 = load_npz(test_npz, ['position', 'move', 'result'])['hist']
         hist_b = load_npz(self.game1, ['hist', 'size', 'duration'])
         hist2 = hist_b['hist']
         player1 = RandomPlayer()
         player2 = RandomPlayer()
 
-        nn_player = NNPlayer(policy) #set as p2 for win, 1 for loss
+        nn_player = NNPlayer(policy) # set as p2 for win, 1 for loss
         game = Board(player1, player2)
 
         game_at = play_forward(game, hist2, to=10)
@@ -107,9 +91,9 @@ class NNBuild(unittest.TestCase):
         winner = len(hist2) % 2 == 0
         print("p2 wins", winner)
         print("p1 - win", game_f.is_winner(player1))
-        print("p2 - win", game_f.is_winner(player2)) #winner
+        print("p2 - win", game_f.is_winner(player2)) # winner
         start = timeit.timeit()
-        win_defs, _ = serial_util.process_one_file(hist_b, 1) #player2
+        win_defs, _ = serial_util.process_one_file(hist_b, 1) # player2
         end = timeit.timeit()
         print("time", 1000 * (end - start))
         loss_defs, _ = serial_util.process_one_file(hist_b, 0)
@@ -125,29 +109,22 @@ class NNBuild(unittest.TestCase):
         print(eval_loss)
         """Testing for no error on basic load and run of game"""
 
-
-    
-
-        #game_to_input(game_at)
-
-
     def setup_NNplayer(self, mode='test_mm'):
         value_NET = torch.load('./outputx/checkpoints/200-Final.pkl')
         policy_NET = inn.SLNet(k=64, chkpt='./outputx/policy.pkl').cuda(0)
         nn_player = NNPlayer(policy_NET, value_net=value_NET, mode=mode)
         return nn_player
 
-
     def test_ab_value_net(self):
         """testing history and get move stuff"""
         move_idx = 5
 
-        #load neural networks
+        # load neural networks
         nn_player = self.setup_NNplayer()
         _, hist = self.load_game(self.game1, p=1)
         print("game length", len(hist))
 
-        #create game
+        # create game
         opponent = AlphaBetaPlayer(score_fn=improved_score)
         game = Board(opponent, nn_player)
         game_at = play_forward(game, hist, to=move_idx)
@@ -171,12 +148,11 @@ class NNBuild(unittest.TestCase):
                                 value_net=value_NET,
                                 mode='alphabeta', move_strategy='nn')
 
-        #setup board
+        # setup board
         game = Board(opponent, nn_player)
         game_at = play_forward(game, hist, to=move_idx)
-        #sanity checks
+        # sanity checks
         print(game_at.to_string())
-        #print(game_to_input(game_at))
         print(game_at.history)
         assert nn_player == game_at.active_player
         assert len(game_at.history) == move_idx
@@ -208,7 +184,6 @@ class NNBuild(unittest.TestCase):
         print("nn_saved:", nn_player.game_history)
         print("nn_calcs:", nn_player.num_calcs)
         print("mm_calcs:", opponent.num_calcs)
-        #print("data", [i.keys() for i in nn_player.saved_actions])
 
     def alphabeta(self):
         self.minimax()
@@ -217,12 +192,9 @@ class NNBuild(unittest.TestCase):
         opponent = AlphaBetaPlayer(score_fn=improved_score)
         game = Board(opponent, nn_player)
         w, h, o = game.play_sl()
-        #print_game(game, w, h, o)
-        print("winner", w )
-        #print("nn_saved:", nn_player.game_history)
+        print("winner", w)
         print("nn_calcs:", nn_player.num_calcs)
         print("mm_calcs:", opponent.num_calcs)
-        #print("data", [i.keys() for i in nn_player.saved_actions])
 
     def alphabeta_avg(self):
         self.minimax()
@@ -238,7 +210,6 @@ class NNBuild(unittest.TestCase):
 
     ###################################################################
 
-
     def test_dict(self):
         """test loading network to different class and run some metrics"""
         policy_NET = inn.SLNet(k=64, chkpt='./outputx/policy.pkl').cuda(0)
@@ -246,7 +217,7 @@ class NNBuild(unittest.TestCase):
 
         win_defs, hist = self.load_game(self.game1)
         l_defs, hist = self.load_game(self.game1, p=0)
-        #warmup
+        # warmup
         position = Variable(torch.from_numpy(win_defs[6]).unsqueeze(0).float().cuda(0))
         x = policy_NET(position)
         n = value_NET(position)
@@ -254,7 +225,7 @@ class NNBuild(unittest.TestCase):
         n = policy_NET(position)
         n = value_NET(position)
 
-        #single run time
+        # single run time
         start = timeit.timeit()
         position = Variable(torch.from_numpy(win_defs[5]).unsqueeze(0).float().cuda(0))
         pl = policy_NET(position)
@@ -263,15 +234,13 @@ class NNBuild(unittest.TestCase):
         end = timeit.timeit()
         print("time for 1 run", 1000 * (end - start))
 
-        #n runs time
+        # n runs time
         start1 = timeit.timeit()
         position = Variable(torch.from_numpy(win_defs).float().cuda(0))
         pl = policy_NET(position)
         value = value_NET(position)
         end1 = timeit.timeit()
         print("time for n runs", 1000 * (end1 - start1))
-        #0.02 - 0.41 ms
-
 
     def test_conv(self):
         conv1 = nn.Conv2d(7, 49, 1, stride=1, bias=True)
@@ -284,21 +253,17 @@ class NNBuild(unittest.TestCase):
 
 
 class NNTEST(unittest.TestCase):
-
     def test_move(self):
-        #setup networks
+        # setup networks
         policy = './outputx/checkpoints/model_nn_small_0.006865953999977137_2.pkl'
-
 
         model_old = './outputx/checkpoints/model_nn_small_0.006865953999977137_0.pkl'
         model = torch.load(policy)
-        #print("loaded", model)
-        #model = inn.PolicyNet(model)
 
         parser = argparse.ArgumentParser(description='Hyperparams')
         parser.add_argument('--dd', nargs='?', type=str, default='train', help='[]')
         args = parser.parse_args()
-        #player2 = cntr.loadNNPlayer(model_old)
+
         player2 = RandomPlayer()
         ##
         args.epochs = 100
@@ -307,62 +272,12 @@ class NNTEST(unittest.TestCase):
         args.pool_dir = './outputx/pool/'
         args.out_pool_dir = './outputx/out_pool/'
         args.start_model = 'model_nn_small_0.006865953999977137_2.pkl'
-        #cant fugure out this reinforce with pytorch stuff.
-        #why am i adding a stochastic function when i can just do gradients?
-
-
-        #new_model, win_pct = cntr.play_game_questionable(policy, player2, args, save_mode=False)
+        # cant fugure out this reinforce with pytorch stuff.
+        # why am i adding a stochastic function when i can just do gradients?
         new_model, win_pct = cntr.play_game_rl(model, player2, 'random', args, save_mode=True)
-        #print(new_model, win_pct)
-
-        args.matches = 3
-        #controller.play_game(policy, player_old_nn, criterion)
-        #cntr.tournament_schedule(args)
-        #
-
-
-        #print(optimizer.)
-        # print("ACTIONS", len(saved_actions), saved_actions)
-        #print("Illegal moves {} out of {}".format(
-            #game.get_player_N(2).illegal_hist, game.move_count//2))
-
-
-        #rewards = plc.rewards
-        #print(rewards[0])
-        #rewards = rewards.data
-        #print(rewards[0])
-        #frwards = [r  for r in rewards]
-        #rewards = []
-        #for r in policy.rewards:
-            #R = r + args.gamma * R
-            #rewards.append(r.data )
-        #
-
-        #print(rewards)
-        #https://github.com/Rochester-NRT/RocAlphaGo/blob/develop/AlphaGo/training/reinforcement_policy_trainer.py
-
-        #rewards = (rewards - rewards.mean()) / (rewards.std() + np.finfo(np.float32).eps)
-        #rewards = torch.Tensor(rewards)
-        #rewards = (rewards - rewards.mean()) / rewards.std()
-
-        #for action, logits in zip(policy.saved_actions, policy.rewards):
-            #print("action", action)
-            #print("reward", r )
-            #logits.
-            #lg = logits.Softmax()
-            #print(logits.data)
-            #print(lg)
-            #action.reinforce(lg)
-
-        #optimizer.zero_grad()
-        #autograd.backward(saved_actions, [None for _ in saved_actions])
-        #optimizer.step()
-        #print(rewards)
-        #assert(z_T == 1)
 
     def test_value_loader(self):
         pass
-
 
     def test_load_winner(self):
         game = './testdata/0.006985372980125248.npz'
@@ -393,8 +308,6 @@ class NNTEST(unittest.TestCase):
         assert mover_is_winner(gamez[:4], [4, 2]) is True
         assert mover_is_winner(gamez[5:], [4, 2]) is None
         assert mover_is_winner(gamez[:5], [4, 2]) is False
-
-
 
     def test_load_res(self):
         positions = '/home/psavine/data/isolation/positions/'
@@ -429,13 +342,6 @@ class NNTEST(unittest.TestCase):
         print(move_id)
         #0 -> player 1
         bl = hist_l % 2 == 0 #even, player 1 is winner
-        #print(nm)
-
-
-
-
-
-
 
 
 if __name__ == '__main__':
