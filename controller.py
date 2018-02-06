@@ -2,13 +2,15 @@ import os
 from torch import autograd
 import glob
 from torch.utils import data
+
+from envs.isolation import *
 from problem import loader as serial_util, dataloaders as ld
-from isolation import *
 from sample_players import (RandomPlayer, open_move_score,
                             improved_score, center_score)
 from agents.game_agent import (MinimaxPlayer, AlphaBetaPlayer)
 from agents.nn_players import *
 import time
+from args import args
 
 random.seed()
 eps=1e-6
@@ -48,11 +50,6 @@ def save_game(location, serialized_game, serialized_moves, res, policy_name):
 def print_match_stat(total_won, epoch, opp_name, game, res):
     print("wins:{}, out_of:{}, vs:{}, last_mc:{},  last_res:{}".format(total_won, epoch, opp_name, game.move_count, res))
 
-def compute_grads_1():
-    pass
-
-#preds = [one_hot_move_to_index(game, idx) for idx in indices.data.cpu().numpy()]
-#[print(x) for x in zip(indices.data.cpu().numpy(), moves_n)]
 
 def play_game_rl(policy, opponent_player, opp_name, args, policy_id='best', save_mode=True, verbose=False):
 
@@ -84,7 +81,7 @@ def play_game_rl(policy, opponent_player, opp_name, args, policy_id='best', save
         else:
             z_T, res = -1, 'loss'
 
-        #actions = player.saved_actions
+        # actions = player.saved_actions
         # assume that loss is spread around each move
         final_z = z_T / len(player.saved_actions)
         rewards = torch.from_numpy(np.repeat(final_z, len(player.saved_actions))).float().unsqueeze(-1).cuda(0)

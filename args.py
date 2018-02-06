@@ -22,6 +22,15 @@ parser.add_argument('--pct_train', nargs='?', type=float, default=0.9, help='[]'
 parser.add_argument('--chkt_every', nargs='?', type=int, default=200000, help='[]')
 parser.add_argument('--log_every', nargs='?', type=int, default=20, help='[]')
 parser.add_argument('--validate_every', nargs='?', type=int, default=1000, help='[]')
+
+# zero-specific args
+parser.add_argument('--num_sims', type=int, default=100, help='[]')
+parser.add_argument('--verbose', type=int, default=0, help='[]')
+parser.add_argument('--num_games_self', type=int, default=100, help='[]')
+parser.add_argument('--num_games_eval', type=int, default=50, help='[]')
+parser.add_argument('--win_thresh', type=float, default=0.55)
+
+
 args = parser.parse_args()
 
 # control Env
@@ -49,6 +58,9 @@ for dr in [args.self_play_dir, args.chkpt_dir, args.pool_dir,args.defeated, args
 
 start_timer = time.time()
 start = '{:0.0f}'.format(start_timer)
+
+# process booleans
+args.verbose = True if args.verbose == 1 else False
 
 if args.save != '':
     args.base_dir = '{}{}{}_{}/'.format(args.prefix, 'models/', start, args.save)

@@ -11,6 +11,10 @@
 
 ### NOT_MOVED : None (constant)
 
+
+### todo
+get legal moves. 
+
 ### width : 7 (constant)
 
 Board width

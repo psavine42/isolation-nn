@@ -1,5 +1,5 @@
 import numpy as np
-import isolation as iso
+import envs.isolation as iso
 from agents import game_agent as ga
 import os
 

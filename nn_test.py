@@ -9,7 +9,7 @@ import unittest
 import controller as cntr
 import torch.nn as nn
 from isolation import *
-from problem.dataloaders import *
+from envs.isolation.dataloaders import *
 from problem import loader as serial_util
 from sample_players import (RandomPlayer, improved_score)
 from agents.game_agent import (MinimaxPlayer, AlphaBetaPlayer)

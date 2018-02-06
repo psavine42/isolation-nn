@@ -5,7 +5,7 @@ cases used by the project assistant are not public.
 
 import unittest
 from collections import namedtuple
-import isolation as iso
+import envs.isolation.isolation as iso
 from agents import game_agent as ga
 import sample_players as sp
 from importlib import reload
